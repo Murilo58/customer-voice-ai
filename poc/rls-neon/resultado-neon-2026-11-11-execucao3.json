@@ -1,0 +1,73 @@
+{
+  "executedAt": "2026-11-11T00:35:38.357Z",
+  "prisma": "7.10.1",
+  "adapter": "@prisma/adapter-neon 7.10.1",
+  "results": [
+    {
+      "id": "N0",
+      "name": "Setup de papéis, tabelas e políticas via SQL no Neon",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N1",
+      "name": "Seed sintético por transação interativa com contexto (Prisma 7 + adapter)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "N2",
+      "name": "Sem contexto (pooler): zero linhas",
+      "ok": true,
+      "detail": "linhas=0"
+    },
+    {
+      "id": "N3",
+      "name": "2000 transações concorrentes (50 simultâneas) pelo pooler sem vazamento",
+      "ok": true,
+      "detail": "vazamentos=0; erros=0; p50=198.6 ms; p95=236.6 ms"
+    },
+    {
+      "id": "N3b",
+      "name": "Diagnóstico: 2000 transações com concorrência = pool do cliente (20)",
+      "ok": true,
+      "detail": "vazamentos=0; erros=0; p50=78.9 ms; p95=97.0 ms"
+    },
+    {
+      "id": "N4",
+      "name": "200 consultas sem contexto após a carga: nenhuma linha visível",
+      "ok": true,
+      "detail": "linhas somadas=0"
+    },
+    {
+      "id": "N5",
+      "name": "Rollback em transação interativa sem contexto residual",
+      "ok": true,
+      "detail": "linhas=0"
+    },
+    {
+      "id": "N6",
+      "name": "WITH CHECK e FK composta recusam escrita cruzada",
+      "ok": true,
+      "detail": "with check=true; fk=true"
+    },
+    {
+      "id": "N7a",
+      "name": "Diagnóstico: ida e volta de rede (SELECT 1 pelo pooler)",
+      "ok": true,
+      "detail": "p50=22.9 ms; p95=34.0 ms"
+    },
+    {
+      "id": "N7",
+      "name": "Sobrecarga p95 da transação com contexto ≤ 15 ms",
+      "ok": false,
+      "detail": "p95 simples=37.8 ms; p95 com contexto=137.0 ms; diferença=99.2 ms"
+    },
+    {
+      "id": "CLN",
+      "name": "Limpeza: papel e tabelas da PoC removidos",
+      "ok": true,
+      "detail": "erros=0; papéis restantes=0; tabelas restantes=0"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+// PoC 1 (parte Neon) — schema mínimo, apenas para dados sintéticos.
+// As tabelas, papéis e políticas são criados por setup.sql (não por migrations).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id   String @id @db.Uuid
+  name String
+
+  @@map("organizations")
+}
+
+model Contact {
+  organizationId String @map("organization_id") @db.Uuid
+  id             String @id @db.Uuid
+  email          String
+
+  @@unique([organizationId, id])
+  @@map("contacts")
+}
+
+model Ticket {
+  organizationId String @map("organization_id") @db.Uuid
+  id             String @id @db.Uuid
+  contactId      String @map("contact_id") @db.Uuid
+  subject        String
+
+  @@unique([organizationId, id])
+  @@map("tickets")
+}

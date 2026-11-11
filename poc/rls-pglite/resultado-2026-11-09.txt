@@ -1,0 +1,98 @@
+PASS  T-OWNER  FORCE RLS: dono da tabela sem contexto não vê linhas  — linhas=0
+PASS  T1  Cada tenant vê apenas seus chamados  — A=30 B=20
+PASS  T2  Sem contexto: zero linhas e insert recusado  — linhas=0; insert=recusado
+PASS  T3  UPDATE sem WHERE afeta só o tenant do contexto  — afetadas=30; B alteradas=0
+PASS  T4  WITH CHECK impede inserir ou mover dados para outro tenant  — insert=recusado; update=recusado
+PASS  T5  FK composta recusa referência a contato de outro tenant  — insert or update on table "tickets" violates foreign key constraint "tickets_organization_id_contact_id_fkey"
+PASS  T6  Após COMMIT, a conexão reutilizada não carrega o contexto  — linhas=0; valor residual=""
+PASS  T6b  Sem NULLIF, valor residual '' gera erro de cast (justifica app_current_org())  — invalid input syntax for type uuid: ""
+PASS  T7  Erro no meio da transação: rollback e nenhum contexto residual  — linhas=0
+PASS  T8  2000 transações alternando tenants na mesma conexão sem vazamento  — vazamentos=0
+PASS  T9  Controle negativo: contexto de sessão vaza (por isso é proibido)  — linhas visíveis sem contexto local=30
+PASS  T10  Várias escritas na mesma transação mantêm o contexto
+PASS  T11  Sobrecarga local de BEGIN + set_config + COMMIT (indicativo)  — com contexto=1.194 ms; consulta simples=0.396 ms
+
+Resumo: 13/13 aprovados
+{
+  "engine": "PGlite PostgreSQL 17.5 on aarch64-unknown-linux-gnu, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "results": [
+    {
+      "id": "T-OWNER",
+      "name": "FORCE RLS: dono da tabela sem contexto não vê linhas",
+      "ok": true,
+      "detail": "linhas=0"
+    },
+    {
+      "id": "T1",
+      "name": "Cada tenant vê apenas seus chamados",
+      "ok": true,
+      "detail": "A=30 B=20"
+    },
+    {
+      "id": "T2",
+      "name": "Sem contexto: zero linhas e insert recusado",
+      "ok": true,
+      "detail": "linhas=0; insert=recusado"
+    },
+    {
+      "id": "T3",
+      "name": "UPDATE sem WHERE afeta só o tenant do contexto",
+      "ok": true,
+      "detail": "afetadas=30; B alteradas=0"
+    },
+    {
+      "id": "T4",
+      "name": "WITH CHECK impede inserir ou mover dados para outro tenant",
+      "ok": true,
+      "detail": "insert=recusado; update=recusado"
+    },
+    {
+      "id": "T5",
+      "name": "FK composta recusa referência a contato de outro tenant",
+      "ok": true,
+      "detail": "insert or update on table \"tickets\" violates foreign key constraint \"tickets_organization_id_contact_id_fkey\""
+    },
+    {
+      "id": "T6",
+      "name": "Após COMMIT, a conexão reutilizada não carrega o contexto",
+      "ok": true,
+      "detail": "linhas=0; valor residual=\"\""
+    },
+    {
+      "id": "T6b",
+      "name": "Sem NULLIF, valor residual '' gera erro de cast (justifica app_current_org())",
+      "ok": true,
+      "detail": "invalid input syntax for type uuid: \"\""
+    },
+    {
+      "id": "T7",
+      "name": "Erro no meio da transação: rollback e nenhum contexto residual",
+      "ok": true,
+      "detail": "linhas=0"
+    },
+    {
+      "id": "T8",
+      "name": "2000 transações alternando tenants na mesma conexão sem vazamento",
+      "ok": true,
+      "detail": "vazamentos=0"
+    },
+    {
+      "id": "T9",
+      "name": "Controle negativo: contexto de sessão vaza (por isso é proibido)",
+      "ok": true,
+      "detail": "linhas visíveis sem contexto local=30"
+    },
+    {
+      "id": "T10",
+      "name": "Várias escritas na mesma transação mantêm o contexto",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "T11",
+      "name": "Sobrecarga local de BEGIN + set_config + COMMIT (indicativo)",
+      "ok": true,
+      "detail": "com contexto=1.194 ms; consulta simples=0.396 ms"
+    }
+  ]
+}

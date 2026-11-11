@@ -1,0 +1,783 @@
+// Customer Voice AI — schema do I-0 (identidade, organizações, convites, auditoria base).
+// RLS, papéis, funções de contexto e triggers ficam no SQL das migrations (ADR-002; DATA_MODEL seção 5).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Plataforma: identidade (Better Auth) ----------
+
+model User {
+  id               String   @id @db.Uuid
+  name             String
+  email            String   @unique
+  emailVerified    Boolean  @default(false) @map("email_verified")
+  image            String?
+  twoFactorEnabled Boolean? @default(false) @map("two_factor_enabled")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions      Session[]
+  accounts      Account[]
+  twoFactors    TwoFactor[]
+  memberships   Membership[]
+  platformAdmin PlatformAdmin?
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  token     String   @unique
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id") @db.Uuid
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model TwoFactor {
+  id                      String    @id @db.Uuid
+  secret                  String
+  backupCodes             String    @map("backup_codes")
+  userId                  String    @map("user_id") @db.Uuid
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0) @map("failed_verification_count")
+  lockedUntil             DateTime? @map("locked_until") @db.Timestamptz(3)
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factors")
+}
+
+model PlatformAdmin {
+  userId    String   @id @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("platform_admins")
+}
+
+// Convite para criar uma organização (beta fechado por convite; RF-ORG-01)
+model OrganizationInvitation {
+  id             String    @id @db.Uuid
+  email          String
+  tokenHash      String    @unique @map("token_hash")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt         DateTime? @map("used_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("organization_invitations")
+}
+
+// ---------- Tenant ----------
+
+enum OrganizationStatus {
+  active
+  suspended
+
+  @@map("organization_status")
+}
+
+enum MemberRole {
+  admin
+  manager
+  agent
+
+  @@map("member_role")
+}
+
+enum MembershipStatus {
+  active
+  inactive
+
+  @@map("membership_status")
+}
+
+enum ActorType {
+  user
+  superadmin
+  contact
+  system
+
+  @@map("actor_type")
+}
+
+model Organization {
+  id            String             @id @db.Uuid
+  slug          String             @unique
+  name          String
+  timezone      String             @default("America/Sao_Paulo")
+  ticketPrefix  String             @map("ticket_prefix")
+  ticketSeq     Int                @default(0) @map("ticket_seq")
+  status        OrganizationStatus @default(active)
+  aiEnabled     Boolean            @default(false) @map("ai_enabled")
+  /// Horário comercial por dia da semana (0 = domingo): [início, fim] em minutos locais (RN-23)
+  businessHours Json               @default("{\"1\":[540,1080],\"2\":[540,1080],\"3\":[540,1080],\"4\":[540,1080],\"5\":[540,1080]}") @map("business_hours")
+  retentionDays Int?               @map("retention_days")
+  /// Cota mensal de operações de IA definida pelo Superadmin (RF-CON-02); nula = padrão da plataforma
+  aiQuotaOps    Int?               @map("ai_quota_ops")
+  planCode      String?            @map("plan_code")
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  memberships   Membership[]
+  invitations   UserInvitation[]
+  auditLogs     AuditLog[]
+  companies     ClientCompany[]
+  contacts      Contact[]
+  tickets       Ticket[]
+  categories    Category[]
+  reasons       Reason[]
+  aiQuotas      AiQuota[]
+  aiUsage       AiUsageEvent[]
+  teams         Team[]
+  onboarding    OnboardingItem[]
+  outbound      OutboundEmail[]
+  holidays      Holiday[]
+  slaPolicies   SlaPolicy[]
+  slaEvents     SlaEvent[]
+  notifications Notification[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  organizationId String           @map("organization_id") @db.Uuid
+  id             String           @id @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           MemberRole
+  executiveRead  Boolean          @default(false) @map("executive_read")
+  status         MembershipStatus @default(active)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization  Organization     @relation(fields: [organizationId], references: [id])
+  user          User             @relation(fields: [userId], references: [id])
+  invitations   UserInvitation[] @relation("InvitationCreator")
+  messages      TicketMessage[]
+  reviews       TriageReview[]
+  teamLinks     TeamMember[]
+  assigned      Ticket[]         @relation("TicketAssignee")
+  notifications Notification[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, userId])
+  @@map("memberships")
+}
+
+model UserInvitation {
+  organizationId        String     @map("organization_id") @db.Uuid
+  id                    String     @id @db.Uuid
+  email                 String
+  role                  MemberRole
+  tokenHash             String     @unique @map("token_hash")
+  expiresAt             DateTime   @map("expires_at") @db.Timestamptz(3)
+  acceptedAt            DateTime?  @map("accepted_at") @db.Timestamptz(3)
+  revokedAt             DateTime?  @map("revoked_at") @db.Timestamptz(3)
+  /// Equipes atribuídas no convite (RF-ORG-04; CA-02.4)
+  teamIds               String[]   @default([]) @map("team_ids") @db.Uuid
+  createdByMembershipId String     @map("created_by_membership_id") @db.Uuid
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    Membership   @relation("InvitationCreator", fields: [organizationId, createdByMembershipId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@map("user_invitations")
+}
+
+model AuditLog {
+  id             String    @id @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  actorType      ActorType @map("actor_type")
+  actorId        String?   @map("actor_id") @db.Uuid
+  action         String
+  targetType     String?   @map("target_type")
+  targetId       String?   @map("target_id")
+  details        Json      @default("{}")
+  ipHash         String?   @map("ip_hash")
+  requestId      String?   @map("request_id")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, action])
+  @@map("audit_logs")
+}
+
+// ---------- I-1: clientes e chamados ----------
+
+enum TicketChannel {
+  portal
+  email
+  manual
+
+  @@map("ticket_channel")
+}
+
+enum TicketType {
+  complaint
+  request
+  question
+  suggestion
+  compliment
+
+  @@map("ticket_type")
+}
+
+enum TicketPriority {
+  low
+  medium
+  high
+  urgent
+
+  @@map("ticket_priority")
+}
+
+enum TicketStatus {
+  new
+  open
+  waiting_customer
+  waiting_third_party
+  resolved
+  closed
+  cancelled
+
+  @@map("ticket_status")
+}
+
+enum TriageState {
+  pending
+  suggested
+  reviewed
+  unavailable
+
+  @@map("triage_state")
+}
+
+enum MessageKind {
+  customer_message
+  public_reply
+  internal_note
+  system
+
+  @@map("message_kind")
+}
+
+model ClientCompany {
+  organizationId String    @map("organization_id") @db.Uuid
+  id             String    @id @db.Uuid
+  name           String
+  emailDomain    String?   @map("email_domain")
+  anonymizedAt   DateTime? @map("anonymized_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contacts     Contact[]
+
+  @@unique([organizationId, id])
+  @@map("client_companies")
+}
+
+model Contact {
+  organizationId  String    @map("organization_id") @db.Uuid
+  id              String    @id @db.Uuid
+  name            String
+  email           String
+  phone           String?
+  clientCompanyId String?   @map("client_company_id") @db.Uuid
+  pseudonymCode   String?   @map("pseudonym_code")
+  anonymizedAt    DateTime? @map("anonymized_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  company      ClientCompany? @relation(fields: [organizationId, clientCompanyId], references: [organizationId, id])
+  tickets      Ticket[]
+
+  @@unique([organizationId, id])
+  @@map("contacts")
+}
+
+model Ticket {
+  organizationId            String         @map("organization_id") @db.Uuid
+  id                        String         @id @db.Uuid
+  number                    Int
+  contactId                 String         @map("contact_id") @db.Uuid
+  subject                   String
+  description               String
+  channel                   TicketChannel
+  type                      TicketType?
+  priority                  TicketPriority @default(medium)
+  status                    TicketStatus   @default(new)
+  triageState               TriageState    @default(pending) @map("triage_state")
+  categoryId                String?        @map("category_id") @db.Uuid
+  reasonId                  String?        @map("reason_id") @db.Uuid
+  sentiment                 Sentiment?
+  escalationRisk            Boolean        @default(false) @map("escalation_risk")
+  /// Prioridade escolhida por pessoa (a triagem não a sobrescreve)
+  priorityManual            Boolean        @default(false) @map("priority_manual")
+  teamId                    String?        @map("team_id") @db.Uuid
+  assigneeMembershipId      String?        @map("assignee_membership_id") @db.Uuid
+  cancelReason              String?        @map("cancel_reason")
+  firstRespondedAt          DateTime?      @map("first_responded_at") @db.Timestamptz(3)
+  resolvedAt                DateTime?      @map("resolved_at") @db.Timestamptz(3)
+  closedAt                  DateTime?      @map("closed_at") @db.Timestamptz(3)
+  /// Incrementa a cada resolução (fechamento automático e, no I-4, CSAT por resolução)
+  resolutionSeq             Int            @default(0) @map("resolution_seq")
+  cancelledAt               DateTime?      @map("cancelled_at") @db.Timestamptz(3)
+  /// Calendário e metas vigentes na criação (CA-12.3, CA-03.3); nulo em chamados anteriores ao I-5
+  slaSnapshot               Json?          @map("sla_snapshot")
+  /// Intervalos em que o relógio do SLA corre (Novo/Aberto): [[início, fim|null], ...] (RN-21, RN-22)
+  slaIntervals              Json           @default("[]") @map("sla_intervals")
+  firstResponseDueAt        DateTime?      @map("first_response_due_at") @db.Timestamptz(3)
+  firstResponseRiskAt       DateTime?      @map("first_response_risk_at") @db.Timestamptz(3)
+  resolutionDueAt           DateTime?      @map("resolution_due_at") @db.Timestamptz(3)
+  resolutionRiskAt          DateTime?      @map("resolution_risk_at") @db.Timestamptz(3)
+  /// Tempos em horas úteis para os indicadores (RN-40, RN-41)
+  firstResponseBusinessSecs Int?           @map("first_response_business_secs")
+  resolutionBusinessSecs    Int?           @map("resolution_business_secs")
+  createdAt                 DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization  Organization    @relation(fields: [organizationId], references: [id])
+  contact       Contact         @relation(fields: [organizationId, contactId], references: [organizationId, id])
+  messages      TicketMessage[]
+  events        TicketEvent[]
+  category      Category?       @relation(fields: [organizationId, categoryId], references: [organizationId, id])
+  reason        Reason?         @relation(fields: [organizationId, reasonId], references: [organizationId, id])
+  triageRuns    TriageRun[]
+  team          Team?           @relation(fields: [organizationId, teamId], references: [organizationId, id])
+  assignee      Membership?     @relation("TicketAssignee", fields: [organizationId, assigneeMembershipId], references: [organizationId, id])
+  outbound      OutboundEmail[]
+  slaEvents     SlaEvent[]
+  notifications Notification[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, teamId, assigneeMembershipId, status])
+  @@index([organizationId, status, priority, createdAt(sort: Desc)])
+  @@index([organizationId, contactId, createdAt(sort: Desc)])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  organizationId     String      @map("organization_id") @db.Uuid
+  id                 String      @id @db.Uuid
+  ticketId           String      @map("ticket_id") @db.Uuid
+  kind               MessageKind
+  authorMembershipId String?     @map("author_membership_id") @db.Uuid
+  bodyText           String      @map("body_text")
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket   Ticket          @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+  author   Membership?     @relation(fields: [organizationId, authorMembershipId], references: [organizationId, id])
+  outbound OutboundEmail[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model TicketEvent {
+  organizationId String    @map("organization_id") @db.Uuid
+  id             String    @id @db.Uuid
+  ticketId       String    @map("ticket_id") @db.Uuid
+  type           String
+  actorType      ActorType @map("actor_type")
+  actorId        String?   @map("actor_id") @db.Uuid
+  data           Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket Ticket @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@index([organizationId, ticketId, createdAt])
+  @@map("ticket_events")
+}
+
+// ---------- I-2: taxonomia, outbox, triagem e consumo ----------
+
+enum Sentiment {
+  very_negative
+  negative
+  neutral
+  positive
+
+  @@map("sentiment")
+}
+
+enum JobStatus {
+  pending
+  running
+  succeeded
+  dead
+
+  @@map("job_status")
+}
+
+enum TriageRunStatus {
+  succeeded
+  failed
+  skipped
+
+  @@map("triage_run_status")
+}
+
+enum ReviewOutcome {
+  pending
+  accepted
+  changed
+
+  @@map("review_outcome")
+}
+
+/// Categorias da organização (RF-ATD-13). Renomear preserva o id; desativar preserva o histórico (RN-12).
+model Category {
+  organizationId  String          @map("organization_id") @db.Uuid
+  id              String          @id @db.Uuid
+  name            String
+  defaultPriority TicketPriority? @map("default_priority")
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tickets      Ticket[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, name])
+  @@map("categories")
+}
+
+model Reason {
+  organizationId  String          @map("organization_id") @db.Uuid
+  id              String          @id @db.Uuid
+  name            String
+  defaultPriority TicketPriority? @map("default_priority")
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tickets      Ticket[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, name])
+  @@map("reasons")
+}
+
+/// Outbox (ADR-006). Tabela de plataforma: o payload contém somente IDs.
+model Job {
+  id             String    @id @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  type           String
+  payload        Json      @default("{}")
+  idempotencyKey String    @map("idempotency_key")
+  status         JobStatus @default(pending)
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5) @map("max_attempts")
+  runAfter       DateTime  @default(dbgenerated("now()")) @map("run_after") @db.Timestamptz(3)
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(3)
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([type, idempotencyKey])
+  @@index([status, runAfter])
+  @@index([status, lockedUntil], map: "jobs_running_locked")
+  @@map("jobs")
+}
+
+model TriageRun {
+  organizationId String          @map("organization_id") @db.Uuid
+  id             String          @id @db.Uuid
+  ticketId       String          @map("ticket_id") @db.Uuid
+  idempotencyKey String          @map("idempotency_key")
+  model          String
+  promptVersion  String          @map("prompt_version")
+  status         TriageRunStatus
+  result         Json?
+  errorCode      String?         @map("error_code")
+  forced         Boolean         @default(false)
+  forcedReason   String?         @map("forced_reason")
+  forcedBy       String?         @map("forced_by") @db.Uuid
+  inputTokens    Int             @default(0) @map("input_tokens")
+  outputTokens   Int             @default(0) @map("output_tokens")
+  thoughtTokens  Int             @default(0) @map("thought_tokens")
+  latencyMs      Int             @default(0) @map("latency_ms")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket  Ticket         @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+  reviews TriageReview[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, ticketId, createdAt])
+  @@map("triage_runs")
+}
+
+model TriageReview {
+  organizationId       String        @map("organization_id") @db.Uuid
+  id                   String        @id @db.Uuid
+  triageRunId          String        @map("triage_run_id") @db.Uuid
+  field                String
+  suggestedValue       String?       @map("suggested_value")
+  finalValue           String?       @map("final_value")
+  outcome              ReviewOutcome @default(pending)
+  reviewerMembershipId String?       @map("reviewer_membership_id") @db.Uuid
+  reviewedAt           DateTime?     @map("reviewed_at") @db.Timestamptz(3)
+
+  run      TriageRun   @relation(fields: [organizationId, triageRunId], references: [organizationId, id])
+  reviewer Membership? @relation(fields: [organizationId, reviewerMembershipId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, triageRunId, field])
+  @@index([organizationId, reviewedAt])
+  @@map("triage_reviews")
+}
+
+/// Consumo de IA, somente inserção (RF-CON-01).
+model AiUsageEvent {
+  organizationId String   @map("organization_id") @db.Uuid
+  id             String   @id @db.Uuid
+  feature        String
+  model          String
+  triageRunId    String?  @map("triage_run_id") @db.Uuid
+  inputTokens    Int      @default(0) @map("input_tokens")
+  outputTokens   Int      @default(0) @map("output_tokens")
+  thoughtTokens  Int      @default(0) @map("thought_tokens")
+  costUsdMicros  BigInt   @default(0) @map("cost_usd_micros")
+  priceVersion   String   @map("price_version")
+  latencyMs      Int      @default(0) @map("latency_ms")
+  outcome        String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([organizationId, createdAt])
+  @@map("ai_usage_events")
+}
+
+/// Cota mensal por organização, reservada atomicamente antes de cada chamada (RF-CON-02, RF-CON-03).
+model AiQuota {
+  organizationId String    @map("organization_id") @db.Uuid
+  period         String
+  limitOps       Int       @map("limit_ops")
+  usedOps        Int       @default(0) @map("used_ops")
+  alerted80At    DateTime? @map("alerted_80_at") @db.Timestamptz(3)
+  alerted100At   DateTime? @map("alerted_100_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, period])
+  @@map("ai_quotas")
+}
+
+/// Teto global de gasto de IA da plataforma (RF-CON-04).
+model PlatformAiBudget {
+  period         String    @id
+  limitUsdMicros BigInt    @map("limit_usd_micros")
+  spentUsdMicros BigInt    @default(0) @map("spent_usd_micros")
+  trippedAt      DateTime? @map("tripped_at") @db.Timestamptz(3)
+
+  @@map("platform_ai_budget")
+}
+
+// ---------- I-3: equipes, checklist e e-mails de saída ----------
+
+/// Equipes funcionam como filas (RF-ORG-06). Arquivar preserva o histórico (CA-02.5).
+model Team {
+  organizationId String    @map("organization_id") @db.Uuid
+  id             String    @id @db.Uuid
+  name           String
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  members      TeamMember[]
+  tickets      Ticket[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, name])
+  @@map("teams")
+}
+
+model TeamMember {
+  organizationId String   @map("organization_id") @db.Uuid
+  teamId         String   @map("team_id") @db.Uuid
+  membershipId   String   @map("membership_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  team       Team       @relation(fields: [organizationId, teamId], references: [organizationId, id])
+  membership Membership @relation(fields: [organizationId, membershipId], references: [organizationId, id])
+
+  @@id([organizationId, teamId, membershipId])
+  @@index([organizationId, membershipId])
+  @@map("team_members")
+}
+
+/// Checklist de configuração inicial (RF-ORG-11): item concluído quando a configuração é salva.
+model OnboardingItem {
+  organizationId String   @map("organization_id") @db.Uuid
+  item           String
+  completedAt    DateTime @default(now()) @map("completed_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, item])
+  @@map("onboarding_checklist")
+}
+
+enum OutboundEmailStatus {
+  queued
+  sent
+  delivered
+  delayed
+  bounced
+  complained
+  failed
+
+  @@map("outbound_email_status")
+}
+
+/// E-mails transacionais (RF-EML-01, RF-EML-07). Enviados pela outbox; contêm só a mensagem nova e o link (RN-19).
+model OutboundEmail {
+  organizationId  String              @map("organization_id") @db.Uuid
+  id              String              @id @db.Uuid
+  ticketId        String?             @map("ticket_id") @db.Uuid
+  messageId       String?             @map("message_id") @db.Uuid
+  template        String
+  toAddress       String              @map("to_address")
+  rfcMessageId    String              @unique @map("rfc_message_id")
+  providerEmailId String?             @map("provider_email_id")
+  idempotencyKey  String              @unique @map("idempotency_key")
+  status          OutboundEmailStatus @default(queued)
+  lastError       String?             @map("last_error")
+  sentAt          DateTime?           @map("sent_at") @db.Timestamptz(3)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  ticket       Ticket?        @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+  message      TicketMessage? @relation(fields: [organizationId, messageId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@index([organizationId, ticketId])
+  @@map("outbound_emails")
+}
+
+// ---------- I-5: calendário, SLA, alertas ----------
+
+/// Feriados da organização (RN-23). Um calendário por organização.
+model Holiday {
+  organizationId String   @map("organization_id") @db.Uuid
+  id             String   @id @db.Uuid
+  date           DateTime @db.Date
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, date])
+  @@map("holidays")
+}
+
+/// Metas por prioridade (RF-SLA-01). Minutos nulos = sem meta para a prioridade.
+model SlaPolicy {
+  organizationId       String         @map("organization_id") @db.Uuid
+  priority             TicketPriority
+  firstResponseMinutes Int?           @map("first_response_minutes")
+  resolutionMinutes    Int?           @map("resolution_minutes")
+  businessHours        Boolean        @default(true) @map("business_hours")
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, priority])
+  @@map("sla_policies")
+}
+
+/// Risco e violação, registrados uma vez por chamado e por meta; somente inserção (RF-SLA-05; CA-12.2, CA-12.5).
+model SlaEvent {
+  organizationId String   @map("organization_id") @db.Uuid
+  id             String   @id @db.Uuid
+  ticketId       String   @map("ticket_id") @db.Uuid
+  metric         String
+  kind           String
+  /// Instante em que o limite foi cruzado (80% da meta ou a meta)
+  occurredAt     DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  ticket       Ticket       @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, ticketId, metric, kind])
+  @@index([organizationId, kind, occurredAt])
+  @@map("sla_events")
+}
+
+/// Alertas in-app (RF-SLA-04, RF-CON-03). Cada pessoa lê só os próprios (política de RLS).
+model Notification {
+  organizationId String    @map("organization_id") @db.Uuid
+  id             String    @id @db.Uuid
+  membershipId   String    @map("membership_id") @db.Uuid
+  type           String
+  ticketId       String?   @map("ticket_id") @db.Uuid
+  data           Json      @default("{}")
+  readAt         DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  membership   Membership   @relation(fields: [organizationId, membershipId], references: [organizationId, id])
+  ticket       Ticket?      @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@index([organizationId, membershipId, readAt])
+  @@map("notifications")
+}

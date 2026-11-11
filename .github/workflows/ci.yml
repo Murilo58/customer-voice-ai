@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cva_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # Banco efêmero do CI, somente dados sintéticos. Credenciais locais ao job.
+      DATABASE_DRIVER: pg
+      DATABASE_URL_MIGRATOR: postgresql://postgres:postgres@localhost:5432/cva_test
+      TEST_DATABASE_URL_MIGRATOR: postgresql://postgres:postgres@localhost:5432/cva_test
+      APP_RUNTIME_PASSWORD: ciRuntimePassword0123456789abcdef
+      TEST_DATABASE_URL: postgresql://app_runtime:ciRuntimePassword0123456789abcdef@localhost:5432/cva_test
+      BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret-00
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Typecheck e verificação de segurança (inclui artefatos de agentes)
+        run: npm run lint
+      - name: Testes unitários
+        run: npm run test:unit
+      - name: Migrations (conexão do dono do schema)
+        run: npx prisma migrate deploy
+      - name: Papel app_runtime
+        run: npm run db:bootstrap
+      - name: Testes de integração e suíte de isolamento (bloqueante)
+        run: npm run test:integration
+      - name: Auditoria de dependências
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build
+        run: npm run build

@@ -1,0 +1,8 @@
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/server/identity/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  redirect((await getSessionUser()) ? "/app" : "/entrar");
+}
