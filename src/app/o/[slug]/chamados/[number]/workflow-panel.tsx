@@ -39,7 +39,7 @@ export function WorkflowPanel({ slug, ticket, me, canAssign, teamSuggested, team
       </p>
       <div className="row-actions">
         {transitions.filter((t) => t !== "cancelled").map((t) => (
-          <form key={t} action={changeStatusAction.bind(null, slug, ticket.id, ticket.number)} style={{ display: "inline", marginRight: 8 }}>
+          <form key={t} action={changeStatusAction.bind(null, slug, ticket.id, ticket.number)} className="inline">
             <input type="hidden" name="status" value={t} />
             <button type="submit">{ACTION_LABEL[t] ?? STATUS_LABEL[t]}</button>
           </form>
@@ -61,7 +61,7 @@ export function WorkflowPanel({ slug, ticket, me, canAssign, teamSuggested, team
         {" · "}Responsável: {ticket.assignee?.user.name ?? "—"}
       </p>
       {active && ticket.assignee?.id !== me && (
-        <form action={assumeTicketAction.bind(null, slug, ticket.id, ticket.number)} style={{ display: "inline", marginRight: 8 }}>
+        <form action={assumeTicketAction.bind(null, slug, ticket.id, ticket.number)} className="inline">
           <button type="submit">Assumir</button>
         </form>
       )}

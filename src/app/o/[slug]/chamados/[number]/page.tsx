@@ -109,85 +109,110 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const activeOr = (list: { id: string; name: string; active: boolean }[], keep: string | null) => list.filter((i) => i.active || i.id === keep);
   return (
     <>
-      <p><Link href={`/o/${slug}/chamados`}>← Chamados</Link></p>
-      <h1>{ticket.protocol} · {ticket.subject}</h1>
-      <ErrorAlert code={param(sp, "erro")} />
-      <div className="card">
-        <p>
-          Contato: <Link href={`/o/${slug}/contatos/${ticket.contact.id}`}>{ticket.contact.name}</Link> ({ticket.contact.email})
-          {ticket.contact.company && <> · Empresa: <Link href={`/o/${slug}/empresas/${ticket.contact.company.id}`}>{ticket.contact.company.name}</Link></>}
-        </p>
-        <p>
-          Canal: {CHANNEL_LABEL[ticket.channel]} · Criado em {ticket.createdAt.toLocaleString("pt-BR")} · Atualizado em {ticket.updatedAt.toLocaleString("pt-BR")}
-        </p>
-      </div>
-      {sla && <SlaPanel sla={sla} />}
-      <WorkflowPanel slug={slug} ticket={ticket} me={actor.membershipId} canAssign={canAssign} teamSuggested={teamSuggested} teams={teams} assignable={assignable} />
-      <TriagePanel
-        slug={slug}
-        ticket={ticket}
-        view={view}
-        categories={activeOr(taxonomy.categories, ticket.categoryId)}
-        reasons={activeOr(taxonomy.reasons, ticket.reasonId)}
-        canReprocess={can(actor.role, "triage.reprocess", actor.executiveRead)}
-      />
-      <div className="card">
-        <h2>Descrição</h2>
-        <p style={{ whiteSpace: "pre-wrap" }}>{ticket.description}</p>
-        <AttachmentList items={openingAttachments} hrefBase={files} />
-        {ticket.parentTicketId && <p className="muted">Continuação de um chamado encerrado (CA-13.2).</p>}
-      </div>
-      {csat.length > 0 && (
-        <div className="card">
-          <h2>Avaliação do cliente (CSAT)</h2>
-          <ul>
-            {csat.map((c) => (
-              <li key={c.resolutionSeq}>Resolução {c.resolutionSeq}: <strong>{c.score} de 5</strong>{c.comment && <> — “{c.comment}”</>} <span className="muted">({c.createdAt.toLocaleString("pt-BR")})</span></li>
-            ))}
-          </ul>
+      <div className="page-header">
+        <div>
+          <Link className="back-link" href={`/o/${slug}/chamados`}>← Chamados</Link>
+          <h1>{ticket.protocol} · {ticket.subject}</h1>
+          <p className="meta">
+            {STATUS_LABEL[ticket.status]} · {CHANNEL_LABEL[ticket.channel]} · criado em {ticket.createdAt.toLocaleString("pt-BR")}
+          </p>
         </div>
-      )}
-      <div className="card">
-        <h2>Linha do tempo</h2>
-        <ol>
-          {timeline.map((item) => (
-            <li key={item.id} style={{ marginBottom: 12 }}>
-              <span className="muted">{item.at.toLocaleString("pt-BR")} · </span>
-              {item.kind === "event" ? (
-                <>{describeEvent(item, names)} <span className="muted">— {item.actorName ?? "Sistema"}</span></>
-              ) : (
-                <div className={item.messageKind === "internal_note" ? "message-internal" : "message-public"}>
-                  <strong>{MESSAGE_LABEL[item.messageKind] ?? item.messageKind}</strong> <span className="muted">— {item.author ?? (item.unverifiedSender ? "Remetente externo" : "Sistema")}{item.source === "email" ? " · por e-mail" : item.source === "portal" ? " · pelo portal" : ""}</span>
-                  {item.unverifiedSender && <span className="badge">Remetente não verificado</span>}
-                  {item.emailStatus && <span className="badge">{EMAIL_STATUS_LABEL[item.emailStatus] ?? item.emailStatus}</span>}
-                  <div style={{ whiteSpace: "pre-wrap" }}>{item.body}</div>
-                  {item.html && (
-                    <details>
-                      <summary>Ver e-mail original (HTML sanitizado; imagens remotas não são carregadas)</summary>
-                      {/* HTML sanitizado no recebimento (RN-19): sem scripts, formulários, iframes, estilos ou imagens remotas. */}
-                      <div className="email-html" dangerouslySetInnerHTML={{ __html: item.html }} />
-                    </details>
+      </div>
+      <ErrorAlert code={param(sp, "erro")} />
+      <div className="detail-grid">
+        <div className="detail-main">
+          <div className="card">
+            <h2>Descrição</h2>
+            <p className="prewrap">{ticket.description}</p>
+            <AttachmentList items={openingAttachments} hrefBase={files} />
+            {ticket.parentTicketId && <p className="muted">Continuação de um chamado encerrado (CA-13.2).</p>}
+          </div>
+          <div className="card">
+            <h2>Linha do tempo</h2>
+            <ol className="timeline">
+              {timeline.map((item) => (
+                <li key={item.id}>
+                  <span className="when">{item.at.toLocaleString("pt-BR")}</span>
+                  {item.kind === "event" ? (
+                    <div>{describeEvent(item, names)} <span className="muted">— {item.actorName ?? "Sistema"}</span></div>
+                  ) : (
+                    <div className={item.messageKind === "internal_note" ? "message-internal" : "message-public"}>
+                      <strong>{MESSAGE_LABEL[item.messageKind] ?? item.messageKind}</strong> <span className="muted">— {item.author ?? (item.unverifiedSender ? "Remetente externo" : "Sistema")}{item.source === "email" ? " · por e-mail" : item.source === "portal" ? " · pelo portal" : ""}</span>
+                      {item.unverifiedSender && <span className="badge">Remetente não verificado</span>}
+                      {item.emailStatus && <span className="badge">{EMAIL_STATUS_LABEL[item.emailStatus] ?? item.emailStatus}</span>}
+                      <div className="prewrap">{item.body}</div>
+                      {item.html && (
+                        <details>
+                          <summary>Ver e-mail original (HTML sanitizado; imagens remotas não são carregadas)</summary>
+                          {/* HTML sanitizado no recebimento (RN-19): sem scripts, formulários, iframes, estilos ou imagens remotas. */}
+                          <div className="email-html" dangerouslySetInnerHTML={{ __html: item.html }} />
+                        </details>
+                      )}
+                      <AttachmentList items={item.attachments} hrefBase={files} />
+                    </div>
                   )}
-                  <AttachmentList items={item.attachments} hrefBase={files} />
-                </div>
+                </li>
+              ))}
+            </ol>
+            {replyable && (
+              <form className="composer" action={publicReplyAction.bind(null, slug, ticket.id, ticket.number)}>
+                <label htmlFor="reply">Resposta pública (enviada por e-mail ao contato)</label>
+                <textarea id="reply" name="body" required maxLength={20000} rows={4} />
+                <AttachmentInput id="reply-attachments" />
+                <button type="submit">Enviar resposta</button>
+              </form>
+            )}
+            <form className="composer" action={addNoteAction.bind(null, slug, ticket.id, ticket.number)}>
+              <label htmlFor="body">Nova nota interna (nunca visível ao cliente)</label>
+              <textarea id="body" name="body" required maxLength={20000} rows={4} />
+              <AttachmentInput id="note-attachments" />
+              <button type="submit" className="secondary">Adicionar nota</button>
+            </form>
+          </div>
+        </div>
+        <aside className="detail-side" aria-label="Dados e ações do chamado">
+          <div className="card">
+            <h2>Contato</h2>
+            <dl className="facts">
+              <dt>Nome</dt>
+              <dd><Link href={`/o/${slug}/contatos/${ticket.contact.id}`}>{ticket.contact.name}</Link></dd>
+              <dt>E-mail</dt>
+              <dd>{ticket.contact.email}</dd>
+              {ticket.contact.company && (
+                <>
+                  <dt>Empresa</dt>
+                  <dd><Link href={`/o/${slug}/empresas/${ticket.contact.company.id}`}>{ticket.contact.company.name}</Link></dd>
+                </>
               )}
-            </li>
-          ))}
-        </ol>
-        {replyable && (
-          <form action={publicReplyAction.bind(null, slug, ticket.id, ticket.number)}>
-            <label htmlFor="reply">Resposta pública (enviada por e-mail ao contato)</label>
-            <textarea id="reply" name="body" required maxLength={20000} rows={4} style={{ width: "100%" }} />
-            <AttachmentInput id="reply-attachments" />
-            <button type="submit">Enviar resposta</button>
-          </form>
-        )}
-        <form action={addNoteAction.bind(null, slug, ticket.id, ticket.number)}>
-          <label htmlFor="body">Nova nota interna (nunca visível ao cliente)</label>
-          <textarea id="body" name="body" required maxLength={20000} rows={4} style={{ width: "100%" }} />
-          <AttachmentInput id="note-attachments" />
-          <button type="submit">Adicionar nota</button>
-        </form>
+              <dt>Canal</dt>
+              <dd>{CHANNEL_LABEL[ticket.channel]}</dd>
+              <dt>Criado</dt>
+              <dd>{ticket.createdAt.toLocaleString("pt-BR")}</dd>
+              <dt>Atualizado</dt>
+              <dd>{ticket.updatedAt.toLocaleString("pt-BR")}</dd>
+            </dl>
+          </div>
+          <WorkflowPanel slug={slug} ticket={ticket} me={actor.membershipId} canAssign={canAssign} teamSuggested={teamSuggested} teams={teams} assignable={assignable} />
+          {sla && <SlaPanel sla={sla} />}
+          <TriagePanel
+            slug={slug}
+            ticket={ticket}
+            view={view}
+            categories={activeOr(taxonomy.categories, ticket.categoryId)}
+            reasons={activeOr(taxonomy.reasons, ticket.reasonId)}
+            canReprocess={can(actor.role, "triage.reprocess", actor.executiveRead)}
+          />
+          {csat.length > 0 && (
+            <div className="card">
+              <h2>Avaliação do cliente (CSAT)</h2>
+              <ul>
+                {csat.map((c) => (
+                  <li key={c.resolutionSeq}>Resolução {c.resolutionSeq}: <strong>{c.score} de 5</strong>{c.comment && <> — “{c.comment}”</>} <span className="muted">({c.createdAt.toLocaleString("pt-BR")})</span></li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </aside>
       </div>
     </>
   );

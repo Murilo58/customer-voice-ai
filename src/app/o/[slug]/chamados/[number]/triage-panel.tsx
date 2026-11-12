@@ -73,10 +73,10 @@ export function TriagePanel({ slug, ticket, view, categories, reasons, canReproc
         </form>
       )}
       {canReprocess && (
-        <details style={{ marginTop: 12 }}>
+        <details>
           <summary>Reprocessar triagem</summary>
           <form action={reprocessAction.bind(null, slug, ticket.id, ticket.number)}>
-            <label><input type="checkbox" name="force" value="1" style={{ width: "auto" }} /> Forçar (consome cota e é auditado)</label>
+            <label><input type="checkbox" name="force" value="1" /> Forçar (consome cota e é auditado)</label>
             <label htmlFor="reason">Justificativa (obrigatória para forçar)</label>
             <input id="reason" name="reason" maxLength={500} />
             <button type="submit">Solicitar reprocessamento</button>

@@ -12,7 +12,7 @@ export default async function PortalLayout({ children, params }: { children: Rea
   if (!org) notFound();
   return (
     <>
-      <header className="top">
+      <header className="portal-top">
         <strong><Link href={`/p/${slug}`}>{org.name}</Link> · Atendimento</strong>
         <nav aria-label="Portal">
           <Link href={`/p/${slug}`}>Nova manifestação</Link>
