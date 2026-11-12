@@ -54,10 +54,10 @@ export function AppShell(props: {
   return (
     <div className="shell" data-open={open}>
       <aside className="sidebar" id="app-sidebar" aria-label="Menu principal">
-        <div className="sidebar-brand">
+        <Link href="/app" className="sidebar-brand">
           <span className="logo" aria-hidden="true">CV</span>
           Customer Voice AI
-        </div>
+        </Link>
         <div className="sidebar-org">
           <span className="label">Organização</span>
           <strong>{props.orgName}</strong>
