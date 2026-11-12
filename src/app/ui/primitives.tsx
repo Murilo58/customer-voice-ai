@@ -65,9 +65,9 @@ export function PageHeader({ title, meta, back, actions }: {
 }
 
 /** Card com título e ações opcionais no topo. */
-export function Card({ title, actions, children, className }: { title?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string }) {
+export function Card({ title, actions, children, className, id }: { title?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string; id?: string }) {
   return (
-    <section className={`card${className ? ` ${className}` : ""}`}>
+    <section id={id} className={`card${className ? ` ${className}` : ""}`}>
       {(title || actions) && (
         <div className="card-head">
           {title && <h2>{title}</h2>}
@@ -114,5 +114,23 @@ export function EmptyState({ icon = "inbox", title, children, action }: { icon?:
       {children && <p className="muted">{children}</p>}
       {action}
     </div>
+  );
+}
+
+/**
+ * Card com tabela: cabeçalho fixo e rolagem própria (nunca rola a página na horizontal). A região rolável recebe
+ * foco de teclado e rótulo. Sem linhas, mostra o estado vazio no lugar da tabela.
+ */
+export function TableCard({ title, label, actions, empty, children }: {
+  title?: React.ReactNode; label: string; actions?: React.ReactNode; empty?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <Card title={title} actions={actions} className="table-card">
+      {empty ?? (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label={label}>
+          <table className="data-table">{children}</table>
+        </div>
+      )}
+    </Card>
   );
 }

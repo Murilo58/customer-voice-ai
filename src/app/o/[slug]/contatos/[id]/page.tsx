@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateContactAction } from "@/app/actions/servicedesk";
 import { ErrorAlert, param, Success, type SearchParams } from "@/app/components";
-import { PRIORITY_LABEL, STATUS_LABEL } from "@/lib/labels";
+import { Badge, ButtonLink, Card, EmptyState, PageHeader, PriorityBadge, StatusBadge, TableCard } from "@/app/ui/primitives";
 import { requireServiceActor } from "@/server/identity/session";
 import { getContactProfile, listCompanies } from "@/server/servicedesk/contacts";
 import { ContactFields } from "../contact-fields";
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
+const when = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 
 export default async function ContactPage({ params, searchParams }: { params: Promise<{ slug: string; id: string }>; searchParams: SearchParams }) {
   const { slug, id } = await params;
@@ -19,38 +20,50 @@ export default async function ContactPage({ params, searchParams }: { params: Pr
   const { contact, tickets } = profile;
   return (
     <>
-      <p><Link href={`/o/${slug}/contatos`}>← Contatos</Link></p>
-      <h1>{contact.anonymizedAt ? contact.pseudonymCode ?? "Contato anonimizado" : contact.name}</h1>
+      <PageHeader
+        back={{ href: `/o/${slug}/contatos`, label: "Contatos" }}
+        title={contact.anonymizedAt ? contact.pseudonymCode ?? "Contato anonimizado" : contact.name}
+        meta={<>
+          {contact.anonymizedAt && <Badge tone="neutral">Anonimizado</Badge>}
+          {!contact.anonymizedAt && <span>{contact.email}</span>}
+          {contact.company && <span>Empresa: <Link href={`/o/${slug}/empresas/${contact.company.id}`}>{contact.company.name}</Link></span>}
+        </>}
+        actions={<ButtonLink href={`/o/${slug}/chamados/novo?contato=${contact.id}`} icon="plus">Novo chamado para este contato</ButtonLink>}
+      />
       <ErrorAlert code={param(sp, "erro")} />
       <Success show={param(sp, "ok") === "1"}>Contato atualizado.</Success>
-      {contact.company && <p>Empresa: <Link href={`/o/${slug}/empresas/${contact.company.id}`}>{contact.company.name}</Link></p>}
-      <div className="card">
-        <h2>Histórico de chamados</h2>
-        <p><Link href={`/o/${slug}/chamados/novo?contato=${contact.id}`}>+ Novo chamado para este contato</Link></p>
-        {tickets.length === 0 ? <p className="muted">Nenhum chamado.</p> : (
-          <table>
-            <thead><tr><th>Número</th><th>Assunto</th><th>Prioridade</th><th>Status</th><th>Criado em</th></tr></thead>
+      <div className="detail-grid">
+        <div className="detail-main">
+          <TableCard
+            title={`Histórico de chamados (${tickets.length})`}
+            label="Histórico de chamados (rolável)"
+            empty={tickets.length === 0 ? <EmptyState title="Nenhum chamado">Este contato ainda não abriu chamados.</EmptyState> : undefined}
+          >
+            <thead><tr><th scope="col">Número</th><th scope="col">Assunto</th><th scope="col">Prioridade</th><th scope="col">Status</th><th scope="col">Criado em</th></tr></thead>
             <tbody>
               {tickets.map((t) => (
                 <tr key={t.id}>
                   <td><Link href={`/o/${slug}/chamados/${t.number}`}>#{t.number}</Link></td>
-                  <td>{t.subject}</td>
-                  <td>{PRIORITY_LABEL[t.priority]}</td>
-                  <td>{STATUS_LABEL[t.status]}</td>
-                  <td>{t.createdAt.toLocaleString("pt-BR")}</td>
+                  <td className="t-subject"><Link href={`/o/${slug}/chamados/${t.number}`}>{t.subject}</Link></td>
+                  <td><PriorityBadge priority={t.priority} /></td>
+                  <td><StatusBadge status={t.status} /></td>
+                  <td className="t-nowrap">{when.format(t.createdAt)}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </TableCard>
+        </div>
+        {!contact.anonymizedAt && (
+          <aside className="detail-side" aria-label="Dados do contato">
+            <Card title="Dados do contato">
+              <form action={updateContactAction.bind(null, slug, contact.id)} className="form-stack">
+                <ContactFields companies={companies} values={contact} />
+                <button type="submit" className="btn btn-primary btn-block">Salvar alterações</button>
+              </form>
+            </Card>
+          </aside>
         )}
       </div>
-      {!contact.anonymizedAt && (
-        <form className="card" action={updateContactAction.bind(null, slug, contact.id)}>
-          <h2>Dados do contato</h2>
-          <ContactFields companies={companies} values={contact} />
-          <button type="submit">Salvar alterações</button>
-        </form>
-      )}
     </>
   );
 }
