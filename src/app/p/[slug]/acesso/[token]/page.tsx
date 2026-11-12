@@ -4,12 +4,12 @@ import { consumeMagicLinkAction } from "@/app/actions/portal";
 export default async function PortalAccess({ params }: { params: Promise<{ slug: string; token: string }> }) {
   const { slug, token } = await params;
   return (
-    <>
+    <section className="card portal-narrow">
       <h1>Acessar meus chamados</h1>
-      <form className="card" action={consumeMagicLinkAction.bind(null, slug, token)}>
-        <p>Clique para entrar. O link funciona uma única vez.</p>
-        <button type="submit">Entrar</button>
+      <p className="muted">Clique para entrar. Por segurança, o link funciona uma única vez.</p>
+      <form action={consumeMagicLinkAction.bind(null, slug, token)}>
+        <button type="submit" className="btn btn-primary btn-block">Entrar</button>
       </form>
-    </>
+    </section>
   );
 }

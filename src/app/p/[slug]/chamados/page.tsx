@@ -2,8 +2,10 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { logoutPortalAction } from "@/app/actions/portal";
-import { STATUS_LABEL } from "@/lib/labels";
+import { btn, ButtonLink, EmptyState, PageHeader, StatusBadge } from "@/app/ui/primitives";
 import { getPortalSession, listPortalTickets, PORTAL_COOKIE } from "@/server/portal/service";
+
+const day = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" });
 
 // Chamados do contato (RF-POR-04; CA-07.2).
 export default async function PortalTickets({ params }: { params: Promise<{ slug: string }> }) {
@@ -13,28 +15,36 @@ export default async function PortalTickets({ params }: { params: Promise<{ slug
   const tickets = await listPortalTickets(session);
   return (
     <>
-      <h1>Meus chamados</h1>
-      <div className="muted">
-        {session.contact.name} ({session.contact.email}){" "}
-        <form action={logoutPortalAction.bind(null, slug)} style={{ display: "inline" }}><button type="submit" className="link">Sair</button></form>
-      </div>
-      <div className="card">
-        {tickets.length === 0 ? <p className="muted">Nenhum chamado encontrado.</p> : (
-          <table>
-            <thead><tr><th scope="col">Protocolo</th><th scope="col">Assunto</th><th scope="col">Situação</th><th scope="col">Aberto em</th></tr></thead>
-            <tbody>
-              {tickets.map((t) => (
-                <tr key={t.number}>
-                  <td><Link href={`/p/${slug}/chamados/${t.number}`}>{t.protocol}</Link></td>
-                  <td>{t.subject}</td>
-                  <td>{STATUS_LABEL[t.status]}</td>
-                  <td>{t.createdAt.toLocaleDateString("pt-BR")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <PageHeader
+        title="Meus chamados"
+        meta={<>{session.contact.name} · {session.contact.email}</>}
+        actions={
+          <form action={logoutPortalAction.bind(null, slug)}>
+            <button type="submit" className={btn("secondary", "sm")}>Sair</button>
+          </form>
+        }
+      />
+      {tickets.length === 0 ? (
+        <section className="card">
+          <EmptyState title="Nenhum chamado encontrado" action={<ButtonLink href={`/p/${slug}`} icon="plus">Nova manifestação</ButtonLink>}>
+            Os chamados abertos com este e-mail aparecem aqui.
+          </EmptyState>
+        </section>
+      ) : (
+        <section className="card table-card" aria-label="Lista de chamados">
+          <ul className="portal-tickets">
+            {tickets.map((t) => (
+              <li key={t.number}>
+                <Link href={`/p/${slug}/chamados/${t.number}`} className="ticket-card">
+                  <span className="ticket-card-top"><span>{t.protocol}</span><span>Aberto em {day.format(t.createdAt)}</span></span>
+                  <strong>{t.subject}</strong>
+                  <StatusBadge status={t.status} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }
