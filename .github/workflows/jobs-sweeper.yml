@@ -1,0 +1,30 @@
+# Varredor da outbox do deploy de teste (SLA, fechamento automático, reconciliação do e-mail).
+# O cron do plano Hobby da Vercel é diário; este agendamento gratuito roda a cada 30 min.
+name: Varredor de jobs
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: jobs-sweeper
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Chamar /api/internal/jobs
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::warning::CRON_SECRET ou DEPLOY_URL não configurado; varredura ignorada"; exit 0
+          fi
+          curl -sS --fail --max-time 70 -X POST -H "Authorization: Bearer $CRON_SECRET" "$DEPLOY_URL/api/internal/jobs" -o result.json
+          node -e 'const r=require("./result.json"); console.log("jobs processados:", r.claimed, r.results.filter(x=>x!=="succeeded").length ? "(com falhas)" : "")'

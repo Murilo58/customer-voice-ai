@@ -5,8 +5,8 @@ Status possíveis: **Aprovada**, **Aprovada com condições**, **Proposta** e **
 | ADR | Decisão | Status | Condição ou próximo passo |
 | --- | --- | --- | --- |
 | [001](ADR-001-monolito-modular.md) | Monólito modular | Aprovada | — |
-| [002](ADR-002-isolamento-multi-tenant.md) | `organization_id` + RLS + FKs compostas | Aprovada com condições | PoC no Neon aprovada com ressalvas: isolamento aprovado; N7 e homologação integrada pendentes |
-| [003](ADR-003-orm-prisma.md) | Prisma 7.x fixado | Pendente de validação | Adaptador validado na PoC no Neon; pendentes Better Auth, N7 e testes de pool |
+| [002](ADR-002-isolamento-multi-tenant.md) | `organization_id` + RLS + FKs compostas | Aprovada com condições | PoC no Neon aprovada com ressalvas: isolamento aprovado; N7 atendido na Vercel (12/11/2026); homologação integrada pendente |
+| [003](ADR-003-orm-prisma.md) | Prisma 7.x fixado | Pendente de validação | Adaptador validado na PoC no Neon; N7 atendido; pendentes Better Auth e testes de pool |
 | [004](ADR-004-identidade.md) | Separação de domínios de identidade | Aprovada | — |
 | [004](ADR-004-identidade.md) | Better Auth | Pendente de validação | Versão, segurança e testes no I-0 |
 | [005](ADR-005-gemini.md) | Gemini Developer API | Aprovada com condições | Dados sintéticos até DP-01; controles de gasto |

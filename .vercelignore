@@ -1,0 +1,11 @@
+# Deploy pela CLI: nunca enviar segredos, PoCs ou artefatos locais
+.env
+.env.*
+!.env.example
+poc/
+.storage/
+.next/
+node_modules/
+coverage/
+src/generated/
+*.tsbuildinfo

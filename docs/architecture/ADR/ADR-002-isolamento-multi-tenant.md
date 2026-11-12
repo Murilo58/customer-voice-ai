@@ -9,7 +9,7 @@
 | Aspecto | Situação |
 | --- | --- |
 | Isolamento (N0–N6) | **Aprovado nos cenários testados:** 0 vazamentos em 14.000 transações concorrentes pelo pooler; sem contexto residual; escrita cruzada recusada |
-| Desempenho (N7) | **Pendente.** Meta de 15 ms não considerada atendida (80–99 ms medidos a partir de rede doméstica, não representativa). Medição obrigatória no I-0, antes da homologação do componente de persistência |
+| Desempenho (N7) | **Atendido** — medido na Vercel em 12/11/2026 (função `gru1` → Neon `sa-east-1`, driver neon, 3 × 200 iterações): sobrecarga p95 **13,3 / 13,4 / 14,5 ms** (meta 15 ms) — atendido, com margem pequena. As medições anteriores (80–99 ms) vinham da rede doméstica |
 | Homologação integrada | **Pendente:** depende dos testes integrados da aplicação |
 | 19 erros na execução 1 | Causa não confirmada; exige testes de concorrência e dimensionamento do pool na implementação |
 | Custo | US$ 0 |
@@ -36,7 +36,7 @@ Proteção contra filtro esquecido e IDOR, compatibilidade com o pooler e o ORM,
 | Consulta crua com bug | Sem proteção | Bloqueada |
 | Pooler do Neon | Compatível | Compatível com contexto local à transação (PoC T6, T8; Neon N2–N5 aprovados) |
 | Prisma 7 | Compatível | Exige transação interativa por unidade de trabalho (Neon N1 aprovado) |
-| Sobrecarga | Nenhuma | Uma transação e um `set_config` (local: 0,96 ms em processo; Neon: N7 pendente, sem medição representativa) |
+| Sobrecarga | Nenhuma | Uma transação e um `set_config` (local: 0,96 ms em processo; Neon a partir da Vercel: p95 13–15 ms, N7 atendido) |
 
 ## Recomendação (desenho)
 
@@ -54,7 +54,7 @@ Proteção contra filtro esquecido e IDOR, compatibilidade com o pooler e o ORM,
 
 ## Justificativa
 
-Defesa em profundidade com falha fechada. A PoC local confirmou o desenho SQL (13/13). A PoC no Neon confirmou o isolamento com o pooler real e o adaptador do Prisma 7 nos cenários testados. Permanecem pendentes o desempenho (N7) e a homologação integrada.
+Defesa em profundidade com falha fechada. A PoC local confirmou o desenho SQL (13/13). A PoC no Neon confirmou o isolamento com o pooler real e o adaptador do Prisma 7 nos cenários testados. O N7 foi atendido no deploy de teste (12/11/2026). Permanece pendente a homologação integrada.
 
 ## Impactos
 
@@ -76,7 +76,7 @@ Nenhum custo de serviço. Esforço de implementação moderado.
 | Adaptador do Prisma sem suporte adequado a transações interativas | Mitigado nos cenários testados (N1). Contingência: Drizzle (ADR-003) ou Alternativa A reforçada |
 | Erros sob concorrência de causa não confirmada (19 de 2.000 na execução 1) | Testes adicionais de concorrência e dimensionamento do pool na implementação; monitorar erros de transação |
 | Prisma 8 remove `$transaction` | Fixar 7.x; `withTenant` isola a API |
-| Sobrecarga de latência | Critério N7 ≤ 15 ms no p95, **pendente**: medição obrigatória no I-0 em ambiente equivalente ao de produção |
+| Sobrecarga de latência | Critério N7 ≤ 15 ms no p95: **13,3–14,5 ms** medidos na Vercel `gru1`. Margem pequena: cada consulta extra dentro da transação soma uma ida e volta (~5 ms) |
 
 ## Contingência (Alternativa A reforçada)
 

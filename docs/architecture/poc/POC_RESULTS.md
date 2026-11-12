@@ -12,7 +12,7 @@
 | PoC | Situação | Bloqueio |
 | --- | --- | --- |
 | PoC 1 — RLS: parte local (desenho SQL) | **Executada: 13/13 testes aprovados** | — |
-| PoC 1 — RLS: parte Neon (pooler + Prisma 7) | **Aprovada com ressalvas (10/11/2026).** Isolamento: aprovado nos cenários testados. Desempenho N7: pendente. Homologação integrada: pendente | N7 obrigatório no I-0, antes da homologação do componente de persistência |
+| PoC 1 — RLS: parte Neon (pooler + Prisma 7) | **Aprovada com ressalvas (10/11/2026).** Isolamento: aprovado nos cenários testados. Desempenho N7: **atendido na Vercel (12/11/2026), p95 13,3–14,5 ms**. Homologação integrada: pendente | Ver seção do N7 abaixo |
 | PoC 2 — Teste comparativo Gemini | **Executada (11/11/2026): 80/80 chamadas, 100% de saídas válidas.** Recomendado: `gemini-3.1-flash-lite` (indicativo) | Seleção definitiva depende do golden set de 200 itens (RIA-13) e da decisão do responsável |
 | PoC 3 — Recursos do Resend | **Documental concluída; prática aprovada (11–12/11/2026):** recebimento com SPF/DKIM/DMARC, cabeçalhos, MIME bruto, anexos e subendereçamento `r+token@`; envio com cabeçalhos customizados e idempotência | `Message-ID` customizado **não** é preservado na entrega (R2a'): ajuste mínimo da ADR-007 aprovado em 12/11/2026 (seção 4.2) |
 
@@ -77,7 +77,7 @@ Credenciais nunca são solicitadas no chat. O responsável as configura localmen
 | N5 | Rollback em transação interativa | Sem contexto residual | Aprovado |
 | N6 | WITH CHECK e FK composta pelo runtime | Ambas recusadas | Aprovado |
 | N7a | Diagnóstico: ida e volta de rede (`SELECT 1`) | Registro | p50 23–27 ms; p95 34–38 ms |
-| N7 | Sobrecarga p95 com contexto × consulta simples | ≤ 15 ms | **Não atingido a partir da máquina local:** 80–99 ms |
+| N7 | Sobrecarga p95 com contexto × consulta simples | ≤ 15 ms | Máquina local: 80–99 ms (não representativo). **Vercel `gru1` (12/11/2026): 14,5 / 13,3 / 13,4 ms — atendido** (consulta simples p95 ≈ 5 ms; com contexto ≈ 18–20 ms) |
 | CLN | Limpeza ao final | 0 papéis e 0 tabelas restantes | Aprovado |
 
 **Total sob carga:** 14.000 transações concorrentes pelo pooler (2.000 na execução 1; 4.000 em cada uma das execuções 2 a 4), **0 vazamentos**.
@@ -103,7 +103,7 @@ O script da PoC (não é código da aplicação) foi ajustado para diagnóstico,
 | Aspecto | Situação |
 | --- | --- |
 | Isolamento multi-tenant | **Aprovado nos cenários testados.** Sustenta a adoção de RLS como segunda camada de isolamento |
-| Desempenho N7 | **Pendente.** A meta de 15 ms **não** é considerada atendida. A hipótese de latência de rede é plausível, mas não comprovada em ambiente equivalente ao de produção |
+| Desempenho N7 | **Atendido em 12/11/2026** no deploy de teste (função Vercel `gru1` → Neon `sa-east-1`): p95 13,3–14,5 ms. A hipótese de latência de rede foi confirmada. Margem pequena (≈ 1 ms no pior caso) |
 | Homologação integrada | **Pendente.** A homologação definitiva depende dos testes integrados da aplicação |
 | 19 erros da execução 1 | **Ocorrência de causa não confirmada.** Não atribuída ao pool do Prisma sem evidência |
 | Custo | US$ 0 |
