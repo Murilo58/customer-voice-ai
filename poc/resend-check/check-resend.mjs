@@ -6,7 +6,10 @@
 // Antes: envie, do seu e-mail pessoal, uma mensagem de teste para qualquer endereço do seu domínio
 // de recebimento (ex.: r+tokenteste@<id>.resend.app) e configure um webhook email.received (opcional).
 // Execução: node check-resend.mjs
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
+
+// Carrega o .env local (no .gitignore), se existir; variáveis já definidas no ambiente prevalecem.
+if (existsSync('.env')) process.loadEnvFile('.env');
 
 const KEY = process.env.RESEND_API_KEY;
 if (!KEY) throw new Error('Defina RESEND_API_KEY no ambiente.');

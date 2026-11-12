@@ -1,0 +1,53 @@
+{
+  "executedAt": "2026-11-12T00:04:10.062Z",
+  "checks": [
+    {
+      "id": "R1a",
+      "name": "Listagem de e-mails recebidos disponível",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "id": "R1b",
+      "name": "Objeto authentication (spf/dkim/dmarc) presente",
+      "ok": true,
+      "detail": "{\"spf\":\"pass\",\"dkim\":\"pass\",\"dmarc\":\"pass\"}"
+    },
+    {
+      "id": "R1c",
+      "name": "Cabeçalhos retornados",
+      "ok": true,
+      "detail": "chaves: x-kumoref, received, arc-seal, arc-message-signature, arc-authentication-results, dkim-signature, x-google-dkim-signature, x-gm-message-state, x-gm-gg, x-received, mime-version, from, date, x-gm-features, message-id, subject, to, content-type"
+    },
+    {
+      "id": "R1d",
+      "name": "Authentication-Results entre os cabeçalhos",
+      "ok": false,
+      "detail": "informativo; o objeto authentication é a fonte prevista"
+    },
+    {
+      "id": "R1e",
+      "name": "Message-ID e received_for disponíveis",
+      "ok": true,
+      "detail": "message_id=true; received_for=[\"anything@lexiamoru.resend.app\"]"
+    },
+    {
+      "id": "R1f",
+      "name": "MIME bruto disponível para download",
+      "ok": true,
+      "detail": "expires_at=2026-11-12T01:04:10.464Z"
+    },
+    {
+      "id": "R1g",
+      "name": "Endereço com subendereçamento recebido (r+token@...)",
+      "ok": false,
+      "detail": "to=[\"anything@lexiamoru.resend.app\"]"
+    },
+    {
+      "id": "R1h",
+      "name": "Metadados de anexos",
+      "ok": true,
+      "detail": "anexos=0"
+    }
+  ]
+}

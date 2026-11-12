@@ -13,8 +13,8 @@
 | --- | --- | --- |
 | PoC 1 — RLS: parte local (desenho SQL) | **Executada: 13/13 testes aprovados** | — |
 | PoC 1 — RLS: parte Neon (pooler + Prisma 7) | **Aprovada com ressalvas (10/11/2026).** Isolamento: aprovado nos cenários testados. Desempenho N7: pendente. Homologação integrada: pendente | N7 obrigatório no I-0, antes da homologação do componente de persistência |
-| PoC 2 — Teste comparativo Gemini | **Pronta, não executada** | Requer `GEMINI_API_KEY` no ambiente |
-| PoC 3 — Recursos do Resend | **Verificação documental concluída; teste prático pronto, não executado** | Requer `RESEND_API_KEY` e uma mensagem de teste |
+| PoC 2 — Teste comparativo Gemini | **Executada (11/11/2026): 80/80 chamadas, 100% de saídas válidas.** Recomendado: `gemini-3.1-flash-lite` (indicativo) | Seleção definitiva depende do golden set de 200 itens (RIA-13) e da decisão do responsável |
+| PoC 3 — Recursos do Resend | **Documental concluída; prática aprovada (11–12/11/2026):** recebimento com SPF/DKIM/DMARC, cabeçalhos, MIME bruto, anexos e subendereçamento `r+token@`; envio com cabeçalhos customizados e idempotência | `Message-ID` customizado **não** é preservado na entrega (R2a'): ajuste mínimo da ADR-007 aprovado em 12/11/2026 (seção 4.2) |
 
 Credenciais nunca são solicitadas no chat. O responsável as configura localmente (seção 5); a verificação confirma apenas presença e formato, sem exibir valores.
 
@@ -114,7 +114,36 @@ O script da PoC (não é código da aplicação) foi ajustado para diagnóstico,
 2. **A implementação deve incluir testes adicionais de concorrência e de dimensionamento do pool.**
 3. **Projeto Neon `cva-poc-rls` mantido temporariamente**, com o `.env` preservado, para testes complementares. Condições: isolado, sem dados reais, sem recursos pagos nem cobranças adicionais.
 
-## 3. PoC 2 — Teste comparativo Gemini (pronto)
+## 3. PoC 2 — Teste comparativo Gemini (executada)
+
+### Resultado (11/11/2026)
+
+**Ambiente:** chave do nível gratuito do Google AI Studio, configurada em `poc/gemini-benchmark/.env` (no `.gitignore`), execução local. 40 itens sintéticos × 2 modelos = 80 chamadas, nenhuma nova tentativa, nenhuma recusa por limite (429). Custo real: US$ 0 (nível gratuito). Custo equivalente no nível pago: US$ 0,021. **Evidência:** `poc/gemini-benchmark/resultado-benchmark-2026-11-11.json`.
+
+| Métrica | `gemini-3.1-flash-lite` | `gemini-3.5-flash-lite` |
+| --- | --- | --- |
+| Saída válida no schema | 100% | 100% |
+| Acurácia: tipo | **90,0%** | 87,5% |
+| Acurácia: categoria | **100%** | 95% |
+| Acurácia: urgência | 85% | 85% |
+| Acurácia: risco de escalada | 100% (5/5 e nenhum falso positivo) | 100% |
+| Adversariais (S21, S22, S38) | 3/3 tipo e categoria corretos | 3/3 |
+| Latência p50 / p95 (só a chamada) | 1.149 / **1.602 ms** | 1.059 / 1.848 ms |
+| Tokens médios entrada / saída / raciocínio | 263 / 100 / 0 | 263 / 93 / 0 |
+| `thinkingLevel: MINIMAL` | Aceito | Aceito |
+| Custo projetado por 1.000 chamados (nível pago, +10%) | **US$ 0,24** | US$ 0,34 |
+
+**Erros comuns aos dois modelos:** urgência em S21, S22 e S34; tipo em S03, S23 e S39. A urgência é o campo mais fraco (85%), e os adversariais acertaram tipo e categoria, mas erraram a urgência. Isso indica ajuste de critério no prompt, não limitação de modelo.
+
+**Recomendação:** `gemini-3.1-flash-lite` como modelo da triagem. É melhor ou igual em todos os campos de acurácia, tem p95 menor e custa cerca de 30% menos. O `gemini-3.5-flash-lite` fica como alternativa de contingência (mesmo schema e prompt). Com o MINIMAL, nenhum dos dois consumiu tokens de raciocínio.
+
+**Pendências:**
+
+1. Resultado indicativo (40 itens). A seleção definitiva exige o golden set de pelo menos 200 itens (RIA-13).
+2. Revisar os critérios de urgência do prompt antes da integração (meta de acurácia a definir no golden set).
+3. A troca de `AI_PROVIDER=simulated` para `gemini` na aplicação continua bloqueada até a decisão do responsável. O uso em produção exige chave do nível pago, porque no nível gratuito o conteúdo pode ser usado pelo Google, o que é inaceitável com dados reais.
+
+### Preparação
 
 **Script:** `poc/gemini-benchmark/benchmark.mjs`, com `@google/genai` 3.0.0, publicado em 06/11/2026.
 
@@ -170,7 +199,54 @@ O script da PoC (não é código da aplicação) foi ajustado para diagnóstico,
 
 **Implicação para a arquitetura:** como o endpoint pode ser desativado após falhas, um **job de reconciliação** deve listar periodicamente os e-mails recebidos pela API e processar os que não chegaram por webhook (ADR-007).
 
-### 4.2 Teste prático (pronto)
+### 4.2 Teste prático — execução parcial (11 e 12/11/2026, UTC)
+
+Conta gratuita, domínio de recebimento gerenciado pelo Resend, chave em `poc/resend-check/.env` (no `.gitignore`), custo US$ 0.
+
+**Evidências:**
+
+- `poc/resend-check/resultado-resend-2026-11-11-envio.json` (envio).
+- `poc/resend-check/resultado-resend-2026-11-12-recebimento.json` (recebimento, executado sem `TEST_TO` para não reenviar).
+
+| Teste | Resultado |
+| --- | --- |
+| R1a — API de listagem de recebidos | **OK** (HTTP 200) |
+| R1b — objeto `authentication` | **OK:** `spf=pass`, `dkim=pass`, `dmarc=pass` (remetente Gmail). Atende RN-15c |
+| R1c — cabeçalhos retornados | **OK:** 18 chaves, incluindo `received`, `arc-seal`, `arc-authentication-results`, `dkim-signature`, `message-id`, `from`, `to`, `date`, `subject` |
+| R1d — `Authentication-Results` entre os cabeçalhos | **Não retornado** (informativo). A fonte prevista é o objeto `authentication`; `arc-authentication-results` está disponível |
+| R1e — `message_id` e `received_for` | **OK** |
+| R1f — MIME bruto para download | **OK:** URL assinada com validade de cerca de 1 h (`expires_at`) |
+| R1h — metadados de anexos | **OK** (estrutura presente; mensagem sem anexos) |
+| R1g — recebimento em endereço com token (`r+token@`) | **OK (12/11/2026):** recebido. `to` e `received_for` = `r+tokenteste@<id>.resend.app`, com o `+` e o token preservados. SPF/DKIM/DMARC `pass`. Evidência: `resultado-resend-2026-11-12-subenderecamento.json` |
+| R2a — envio com `Message-ID`/`In-Reply-To`/`References` customizados | **OK:** aceito (HTTP 200) |
+| R2a' — `Message-ID` preservado na entrega | **NÃO (12/11/2026):** no original da mensagem entregue (Gmail, "Mostrar original"), o `Message-ID` termina em `@email.amazonses.com`. O valor customizado `<poc-…@poc.invalid>` foi substituído pela infraestrutura de envio. A API aceita o cabeçalho, mas não o preserva. Conferência manual do responsável |
+| R2b — `Idempotency-Key` | **OK:** a repetição devolveu o mesmo id, sem novo envio |
+
+**Achado sobre o R1g:** as primeiras tentativas falharam porque foram enviadas para um subdomínio digitado errado (`elexiamoru` em vez de `lexiamoru`), não por causa do token. No subdomínio correto, o subendereçamento com `+` funciona no domínio gerenciado do plano gratuito, e o token chega íntegro em `to` e `received_for` (ADR-007 confirmada). A variante `r-token@` não foi reenviada ao subdomínio correto: é desnecessária, porque o formato com `+` está validado.
+
+**Impacto na ADR-007 (avaliação; nenhuma mudança aplicada):**
+
+| Item da ADR-007 | Impacto |
+| --- | --- |
+| 2. Reply-To `r+{token}@` como vínculo principal (RN-15a) | **Nenhum.** Validado no R1g; passa a ser o **único** vínculo de correlação |
+| Correspondência secundária por `In-Reply-To`/`References` com o `Message-ID` emitido (`outbound_emails.rfc_message_id`) | **Não funciona como desenhado:** as respostas dos clientes vão citar o `Message-ID` atribuído pelo provedor, não o nosso |
+| 4. Deduplicação por `Message-ID` de **entrada** (RN-18) | **Nenhum.** Usa o `Message-ID` da mensagem recebida (R1e), não o emitido |
+| Envio idempotente e eventos de status | **Nenhum** (R2b) |
+
+**Ajuste mínimo (aprovado pelo responsável em 12/11/2026 e registrado na ADR-007 e no DATA_MODEL; implementação no I-4):**
+
+1. **Correlação somente pelo token `r+{token}@`**, combinado com organização, remetente e `authentication` (RN-15, sem mudança de regra). Retirar da ADR-007 a correspondência secundária por `In-Reply-To`/`References`.
+2. **Sem token válido** (cliente respondeu para outro endereço ou removeu o Reply-To), aplicar o fluxo já previsto: novo chamado ou quarentena (RN-15/RN-17). Não criar heurística nova.
+3. **`rfc_message_id`** fica como identificador interno e de auditoria. Não deve ser usado para associar respostas. Não exige migration.
+4. **Envio:** continuar enviando `Message-ID` próprio é inofensivo, mas inútil. A remoção é opcional e pode ser feita no I-4.
+5. **Não verificado** (só se a correspondência secundária vier a ser exigida): se o evento de entrega ou a API do Resend informam o `Message-ID` efetivo atribuído pelo provedor, que poderia ser guardado para correspondência. Também não foi verificado se `In-Reply-To`/`References` customizados são preservados; isso afeta só o agrupamento visual no cliente de e-mail, não a correlação.
+
+**Implicações já comprovadas:**
+
+1. O veredito de SPF/DKIM/DMARC vem pronto da API (RN-15c).
+2. O MIME bruto expira em cerca de 1 h. Se precisar ser guardado, deve ser baixado durante o processamento do webhook ou job.
+
+### 4.2.1 Roteiro do teste prático
 
 O script `poc/resend-check/check-resend.mjs` verifica na prática:
 
@@ -190,7 +266,7 @@ Nenhuma credencial deve ser colada no chat. Use projetos e chaves exclusivos par
 1. **Neon:** criar um projeto gratuito exclusivo para a PoC (região `aws-sa-east-1`) e preencher `poc/rls-neon/.env`, que está no `.gitignore`. Depois executar `npx prisma generate && npx tsx poc-neon.ts` em `poc/rls-neon`.
 2. **Gemini:** em um terminal, definir `GEMINI_API_KEY` só na sessão. Depois executar `node benchmark.mjs` em `poc/gemini-benchmark`.
 3. **Resend:**
-   - Definir `RESEND_API_KEY` e `TEST_TO`.
+   - Preencher `RESEND_API_KEY` e `TEST_TO` em `poc/resend-check/.env` (já criado, no `.gitignore`; o script o carrega).
    - Enviar do e-mail pessoal uma mensagem de teste para `r+tokenteste@<seu-id>.resend.app`.
    - Executar `node check-resend.mjs` em `poc/resend-check`.
 

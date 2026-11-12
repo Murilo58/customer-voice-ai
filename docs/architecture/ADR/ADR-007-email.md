@@ -1,6 +1,6 @@
 # ADR-007 — E-mail de entrada e saída: Resend
 
-**Status:** Aprovada com condições (provisória). Será consolidada após o teste prático da PoC 3 e a homologação da arquitetura.
+**Status:** Aprovada com condições (provisória). Teste prático da PoC 3 concluído em 12/11/2026, com ajuste de correlação aprovado pelo responsável em 12/11/2026. Será consolidada na homologação da arquitetura.
 
 ## Problema
 
@@ -26,7 +26,9 @@ Envio transacional, recebimento, webhooks, autenticação de domínio, veredito 
 | Garantia e retentativa | Webhooks assinados (Svix), com retentativas por cerca de 42 h. **O endpoint é desativado após falhas contínuas** |
 | Eventos | `email.received`, `delivered`, `bounced`, `complained`, `failed`, `delivery_delayed` e outros |
 | Retenção no provedor | 30 dias |
-| Não confirmado | Tamanho máximo de entrada; subendereçamento `r+token@` explícito; aceitação de `Message-ID` customizado; uso comercial no plano Free |
+| Confirmado na PoC 3 (11–12/11/2026) | Subendereçamento `r+token@` recebido, com o token íntegro em `to`/`received_for`; `authentication` = pass/pass/pass; cabeçalhos; MIME bruto (URL válida por cerca de 1 h); `Idempotency-Key` |
+| Refutado na PoC 3 | **`Message-ID` customizado não é preservado na entrega:** a API aceita o cabeçalho, mas a mensagem chega com `Message-ID` do provedor (`@email.amazonses.com`) |
+| Não confirmado | Tamanho máximo de entrada; preservação de `In-Reply-To`/`References` customizados; uso comercial no plano Free |
 
 ## Comparação (resumo)
 
@@ -43,11 +45,11 @@ Envio transacional, recebimento, webhooks, autenticação de domínio, veredito 
 Resend para envio e recebimento, num subdomínio dedicado (ex.: `in.<domínio>`), com o seguinte desenho:
 
 1. **Endereço de entrada por organização:** `{slug}@in.<domínio>`.
-2. **Reply-To por chamado:** `r+{token}@in.<domínio>`, com token de 128 bits em hash ligado a chamado e organização (RN-15a). Se o subendereçamento não funcionar, a alternativa é `r-{token}@in.<domínio>`, que o catch-all aceita.
+2. **Reply-To por chamado:** `r+{token}@in.<domínio>`, com token de 128 bits em hash ligado a chamado e organização (RN-15a). É o **único** vínculo de correlação de respostas (validado na PoC 3). Não há correspondência por `In-Reply-To`/`References`, porque o `Message-ID` emitido não chega ao cliente. Resposta sem token válido segue o fluxo existente: novo chamado ou quarentena (RN-15/RN-17), sem heurística adicional.
 3. **Webhook `email.received`:** verificar a assinatura, gravar `inbound_messages` (único por `provider_email_id`), criar o job e responder 200.
 4. **Worker:** obter a mensagem pela API, deduplicar por `Message-ID` (RN-18) e classificar: automática (RN-16), nova, associada (RN-15: token + organização + remetente + `authentication` sem falha) ou quarentena (RN-17). Depois sanitizar (RN-19) e transferir anexos para verificação (ADR-008).
 5. **Reconciliação** periódica pela API de listagem, para cobrir webhooks perdidos ou endpoint desativado.
-6. **Envio** com `Idempotency-Key = outbound_emails.id`, conteúdo só com a mensagem nova e o link (RN-19), e status atualizado por eventos (RF-EML-07).
+6. **Envio** com `Idempotency-Key = outbound_emails.id`, conteúdo só com a mensagem nova e o link (RN-19), e status atualizado por eventos (RF-EML-07). `outbound_emails.rfc_message_id` fica como identificador interno e de auditoria, sem uso na correlação. O envio do cabeçalho `Message-ID` próprio pode ser removido no I-4 (opcional).
 7. **Domínio** com SPF, DKIM e DMARC.
 
 ## Justificativa

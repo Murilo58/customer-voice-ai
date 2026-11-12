@@ -1,0 +1,29 @@
+{
+  "executedAt": "2026-11-11T23:33:05.947Z",
+  "checks": [
+    {
+      "id": "R1a",
+      "name": "Listagem de e-mails recebidos disponível",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "id": "R1",
+      "name": "Nenhum e-mail recebido encontrado",
+      "ok": false,
+      "detail": "envie uma mensagem de teste ao domínio de recebimento e execute novamente"
+    },
+    {
+      "id": "R2a",
+      "name": "Envio aceito com Message-ID/In-Reply-To/References customizados",
+      "ok": true,
+      "detail": "HTTP 200 {\"id\":\"01a1ccf5-3cf5-7035-bcc3-184520eed177\"}"
+    },
+    {
+      "id": "R2b",
+      "name": "Repetição com a mesma Idempotency-Key não gera novo envio",
+      "ok": true,
+      "detail": "ids iguais=true"
+    }
+  ]
+}
