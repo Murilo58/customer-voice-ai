@@ -535,6 +535,31 @@ a.kpi:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); 
 .check-row { display: flex; align-items: center; gap: var(--space-2); font-weight: 400; }
 .unread { font-weight: 650; }
 
+/* ---------- Dashboard ---------- */
+.dash-filters { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)) auto; gap: var(--space-3); align-items: end; }
+.dash-note { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--muted); }
+.dash-sub { margin: 0 0 var(--space-3); font-size: var(--text-sm); color: var(--muted); }
+.dash-sub strong { color: var(--fg); }
+.dash-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); align-items: start; }
+.dash-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.card.table-card > .card-head { padding: var(--space-5) var(--space-5) 0; }
+.dash-pad { padding: 0 var(--space-5); }
+p.dash-pad:last-child { padding-bottom: var(--space-5); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tbody th { font-weight: 500; color: var(--muted); text-align: left; padding: 9px 12px; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.data-table tbody tr:last-child th { border-bottom: 0; }
+.duration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.duration h3 { margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.duration .data-table td { font-variant-numeric: tabular-nums; font-weight: 600; }
+.bar-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--space-2); font-size: var(--text-sm); }
+.bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-value .muted { font-weight: 400; }
+.bar-track { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.bar-fill { display: block; height: 100%; min-width: 0; border-radius: 0 4px 4px 0; background: var(--accent); }
+.progress-warn > span { background: var(--warn); }
+
 /* ---------- Utilitários ---------- */
 .mt-2 { margin-top: var(--space-2); }
 .panel-gap { margin-top: var(--space-3); }
@@ -546,6 +571,8 @@ a.kpi:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); 
 @media (max-width: 1280px) { .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi-value { font-size: 24px; } }
 @media (max-width: 1100px) {
+  .dash-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dash-grid, .dash-grid-3 { grid-template-columns: minmax(0, 1fr); }
   .toolbar-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .toolbar-main .search { grid-column: 1 / -1; }
   .detail-grid { grid-template-columns: minmax(0, 1fr); }
@@ -563,15 +590,21 @@ a.kpi:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); 
   main.app-main { padding: var(--space-4) var(--space-4) 48px; }
 }
 @media (max-width: 720px) {
-  .table-card .table-scroll { display: none; }
+  /* Só a lista de chamados troca a tabela por cards; as demais tabelas continuam roláveis */
+  .table-card:has(.ticket-cards) .table-scroll { display: none; }
   .ticket-cards { display: block; }
   .page-actions { width: 100%; }
 }
 @media (max-width: 480px) {
+  .dash-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .duration-grid { grid-template-columns: minmax(0, 1fr); }
   .conv-avatar { display: none; }
   .conv-event { padding-left: var(--space-1); }
   .composer-tab { padding: 10px var(--space-3); }
   .card { padding: var(--space-4); }
+  .card.table-card > .card-head { padding: var(--space-4) var(--space-4) 0; }
+  .dash-pad { padding: 0 var(--space-4); }
+  p.dash-pad:last-child { padding-bottom: var(--space-4); }
   main { padding: var(--space-4) var(--space-3) 48px; }
   th, td { padding: 6px 4px; }
   h1 { font-size: var(--text-xl); }
