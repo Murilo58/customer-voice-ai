@@ -13,7 +13,7 @@ export default async function setup(): Promise<void> {
     // A auditoria é somente inserção; a limpeza do banco de testes desativa o trigger só durante o TRUNCATE.
     await client.query("BEGIN");
     await client.query("ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_no_truncate");
-    await client.query(`TRUNCATE notifications, sla_events, sla_policies, holidays, outbound_emails, onboarding_checklist, team_members, teams, jobs, platform_ai_budget, ai_quotas, ai_usage_events, triage_reviews, triage_runs, categories, reasons, ticket_events, ticket_messages, tickets, contacts, client_companies, audit_logs, user_invitations, memberships, organizations, organization_invitations,
+    await client.query(`TRUNCATE email_events, csat_responses, quarantine_items, inbound_messages, inbound_receipts, attachments, portal_sessions, portal_access_tokens, rate_limit_counters, notifications, sla_events, sla_policies, holidays, outbound_emails, onboarding_checklist, team_members, teams, jobs, platform_ai_budget, ai_quotas, ai_usage_events, triage_reviews, triage_runs, categories, reasons, ticket_events, ticket_messages, tickets, contacts, client_companies, audit_logs, user_invitations, memberships, organizations, organization_invitations,
       platform_admins, two_factors, verifications, accounts, sessions, users CASCADE`);
     await client.query("ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_no_truncate");
     await client.query("COMMIT");

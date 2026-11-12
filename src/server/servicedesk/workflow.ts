@@ -13,6 +13,8 @@ import { nextIntervals, type Interval } from "@/server/sla/engine";
 import { businessSecondsFor, refreshSla } from "@/server/sla/service";
 import { canTransition, REOPEN_WINDOW_DAYS, resolutionBlockers } from "./status";
 import { pendingReviewFields, recordFieldReview } from "./triage-review";
+import { insertTicket } from "./tickets";
+import { recordAttachments, type PreparedFile } from "@/server/attachments/service";
 
 // Fluxo do atendimento (I-3): status (RN-05, RN-06, RN-07), atribuição (RF-ATD-06),
 // equipe e respostas públicas (RF-ATD-04, RF-EML-01).
@@ -20,14 +22,19 @@ import { pendingReviewFields, recordFieldReview } from "./triage-review";
 export const AUTOCLOSE_JOB = "ticket.autoclose";
 const MAX_BODY = 20_000;
 
-type Actor = { type: "user"; actor: TenantActor } | { type: "system"; organizationId: string };
+type Actor =
+  | { type: "user"; actor: TenantActor }
+  | { type: "system"; organizationId: string }
+  /** Cliente (portal ou e-mail verificado): só as transições de retorno ao atendimento */
+  | { type: "contact"; organizationId: string; contactId: string };
+
+const orgOf = (who: Actor) => (who.type === "user" ? who.actor.organizationId : who.organizationId);
 
 async function event(tx: Tx, who: Actor, ticketId: string, type: string, data: Record<string, unknown>) {
-  const organizationId = who.type === "user" ? who.actor.organizationId : who.organizationId;
   await tx.ticketEvent.create({
     data: {
-      id: newId(), organizationId, ticketId, type, data: data as Prisma.InputJsonValue,
-      actorType: who.type, actorId: who.type === "user" ? who.actor.userId : null,
+      id: newId(), organizationId: orgOf(who), ticketId, type, data: data as Prisma.InputJsonValue,
+      actorType: who.type, actorId: who.type === "user" ? who.actor.userId : who.type === "contact" ? who.contactId : null,
     },
   });
 }
@@ -49,7 +56,7 @@ async function transition(
   extra: Prisma.TicketUncheckedUpdateManyInput = {},
   data: Record<string, unknown> = {},
 ) {
-  if (!canTransition(t.status, to, who.type)) throw new DomainError("invalid_transition", "");
+  if (!canTransition(t.status, to, who.type === "system" ? "system" : "user")) throw new DomainError("invalid_transition", "");
   const now = new Date();
   const fields: Prisma.TicketUncheckedUpdateManyInput = { status: to, ...extra };
   // Relógio do SLA: corre em Novo/Aberto, pausa nos demais (RN-21, RN-22)
@@ -63,9 +70,9 @@ async function transition(
   const r = await tx.ticket.updateMany({ where: { id: t.id, status: t.status }, data: fields });
   if (r.count !== 1) throw new DomainError("ticket_changed", "");
   await event(tx, who, t.id, "ticket.status_changed", { from: t.status, to, ...data });
-  await refreshSla(tx, who.type === "user" ? who.actor.organizationId : who.organizationId, t.id, now);
+  await refreshSla(tx, orgOf(who), t.id, now);
   if (to === "resolved") {
-    const organizationId = who.type === "user" ? who.actor.organizationId : who.organizationId;
+    const organizationId = orgOf(who);
     const seq = t.resolutionSeq + 1;
     // Fechamento automático após o prazo de reabertura (RN-07): job agendado, ignorado se reaberto.
     await enqueueJob(tx, {
@@ -82,7 +89,7 @@ async function loadTicket(tx: Tx, id: string) {
   const t = await tx.ticket.findUnique({
     where: { id },
     select: {
-      ...SLA_FIELDS, type: true, categoryId: true, teamId: true, assigneeMembershipId: true, firstRespondedAt: true,
+      ...SLA_FIELDS, type: true, categoryId: true, teamId: true, assigneeMembershipId: true, firstRespondedAt: true, resolvedAt: true, subject: true,
       contact: { select: { email: true, anonymizedAt: true } },
     },
   });
@@ -199,7 +206,7 @@ export async function setTicketTeam(actor: TenantActor, id: string, teamId: stri
 
 const REPLYABLE: readonly TicketStatus[] = ["new", "open", "waiting_customer", "waiting_third_party"];
 
-export async function addPublicReply(actor: TenantActor, id: string, text: string, db: Db = getDb()) {
+export async function addPublicReply(actor: TenantActor, id: string, text: string, opts: { files?: PreparedFile[] } = {}, db: Db = getDb()) {
   await requirePermission(actor, "service.access", db);
   const bodyText = text.trim();
   if (bodyText.length < 1 || bodyText.length > MAX_BODY) throw new DomainError("invalid_reply", "");
@@ -209,6 +216,7 @@ export async function addPublicReply(actor: TenantActor, id: string, text: strin
     if (!REPLYABLE.includes(t.status)) throw new DomainError("ticket_not_replyable", "");
     if (t.contact.anonymizedAt) throw new DomainError("contact_anonymized", "");
     await tx.ticketMessage.create({ data: { id: messageId, organizationId: actor.organizationId, ticketId: t.id, kind: "public_reply", authorMembershipId: actor.membershipId, bodyText } });
+    const attachments = opts.files?.length ? await recordAttachments(tx, actor.organizationId, { ticketId: t.id, messageId }, "user", opts.files) : null;
     if (!t.firstRespondedAt) {
       // Primeira resposta pública humana encerra a meta de primeira resposta (RN-20, RN-40).
       const now = new Date();
@@ -218,6 +226,50 @@ export async function addPublicReply(actor: TenantActor, id: string, text: strin
     if (t.status === "new") await transition(tx, { type: "user", actor }, t, "open", {}, { auto: "replied" });
     else await refreshSla(tx, actor.organizationId, t.id);
     const jobId = await queueEmail(tx, { organizationId: actor.organizationId, ticketId: t.id, messageId, template: "public_reply", to: t.contact.email, idempotencyKey: `reply:${messageId}` });
-    return { messageId, jobId };
+    return { messageId, jobId, rejected: attachments?.rejected ?? [] };
   }, db);
+}
+
+// ---------- Mensagem do cliente: portal e e-mail verificado (RF-POR-04; RF-EML-03; CA-13.2) ----------
+
+export interface CustomerMessageInput {
+  text: string;
+  html?: string | null;
+  source: "portal" | "email";
+  inboundMessageId?: string | null;
+  files?: PreparedFile[];
+}
+
+/**
+ * Registra a mensagem do contato no chamado. Aguardando cliente → Aberto; Resolvido dentro do prazo de
+ * RN-07 → reaberto; Fechado, Cancelado ou fora do prazo → novo chamado vinculado ao original (CA-13.2).
+ * Executa na transação corrente (contexto da organização já definido).
+ */
+export async function addCustomerMessage(tx: Tx, organizationId: string, id: string, contactId: string, input: CustomerMessageInput) {
+  const bodyText = input.text.trim().slice(0, MAX_BODY);
+  if (bodyText.length < 1) throw new DomainError("invalid_reply", "");
+  const t = await loadTicket(tx, ticketId(id));
+  const who: Actor = { type: "contact", organizationId, contactId };
+  const uploadedBy = input.source === "portal" ? "contact" : "email";
+  const now = Date.now();
+  const reopenable = t.status === "resolved" && !!t.resolvedAt && now - t.resolvedAt.getTime() < REOPEN_WINDOW_DAYS * 86_400_000;
+  if (t.status === "closed" || t.status === "cancelled" || (t.status === "resolved" && !reopenable)) {
+    const created = await insertTicket(tx, organizationId, {
+      contactId, subject: t.subject, description: bodyText, channel: input.source, parentTicketId: t.id, createdBy: { type: "contact", contactId },
+    });
+    if (input.files?.length) await recordAttachments(tx, organizationId, { ticketId: created.id, messageId: null }, uploadedBy, input.files);
+    await event(tx, who, t.id, "ticket.follow_up_created", { childTicketId: created.id, childNumber: created.number });
+    return { ticketId: created.id, number: created.number, protocol: created.protocol, createdTicket: true, jobId: created.jobId };
+  }
+  const messageId = newId();
+  await tx.ticketMessage.create({
+    data: {
+      id: messageId, organizationId, ticketId: t.id, kind: "customer_message", authorContactId: contactId, bodyText,
+      bodyHtmlSanitized: input.html ?? null, source: input.source, inboundMessageId: input.inboundMessageId ?? null,
+    },
+  });
+  if (input.files?.length) await recordAttachments(tx, organizationId, { ticketId: t.id, messageId }, uploadedBy, input.files);
+  if (t.status === "waiting_customer") await transition(tx, who, t, "open", {}, { auto: "customer_reply" });
+  else if (reopenable) await transition(tx, who, t, "open", {}, { auto: "reopened_by_customer" });
+  return { ticketId: t.id, number: null, protocol: null, createdTicket: false, jobId: null, messageId };
 }

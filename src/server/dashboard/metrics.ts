@@ -121,6 +121,24 @@ export async function getDashboard(actor: TenantActor, filters: DashboardFilters
 
     const triage = await triageAcceptance(tx, start, end, f);
 
+    // CSAT (RN-43): avaliações 4 ou 5 ÷ avaliações do período; média simples; taxa de resposta (KPI-07) = avaliações ÷ resolvidos.
+    const [cs] = await q<{ total: bigint; satisfied: bigint; avg: unknown; s1: bigint; s2: bigint; s3: bigint; s4: bigint; s5: bigint }>(Prisma.sql`
+      SELECT count(*) AS total, count(*) FILTER (WHERE c.score >= 4) AS satisfied, avg(c.score) AS avg,
+        count(*) FILTER (WHERE c.score = 1) AS s1, count(*) FILTER (WHERE c.score = 2) AS s2, count(*) FILTER (WHERE c.score = 3) AS s3,
+        count(*) FILTER (WHERE c.score = 4) AS s4, count(*) FILTER (WHERE c.score = 5) AS s5
+      FROM csat_responses c JOIN tickets t ON t.organization_id = c.organization_id AND t.id = c.ticket_id
+      WHERE c.created_at >= ${start} AND c.created_at < ${end} ${f}`);
+    const csatTotal = Number(cs?.total ?? 0);
+    const resolvedCount = Number(counts?.resolved ?? 0);
+    const csat = {
+      responses: csatTotal,
+      satisfied: Number(cs?.satisfied ?? 0),
+      rate: csatTotal ? Number(cs!.satisfied) / csatTotal : null,
+      average: csatTotal && cs?.avg != null ? Math.round(Number(cs.avg) * 100) / 100 : null,
+      distribution: [cs?.s1, cs?.s2, cs?.s3, cs?.s4, cs?.s5].map((v) => Number(v ?? 0)),
+      responseRate: resolvedCount ? csatTotal / resolvedCount : null,
+    };
+
     return {
       period: { from: fromDate, to: toDate, timezone: org.timezone },
       received: Number(counts?.received ?? 0),
@@ -132,8 +150,7 @@ export async function getDashboard(actor: TenantActor, filters: DashboardFilters
       firstResponse: { count: Number(frt?.n ?? 0), calendar: stat(frt), business: stat({ avg: frt?.biz_avg, median: frt?.biz_median }) },
       resolution: { count: Number(res?.n ?? 0), calendar: stat(res), business: stat({ avg: res?.biz_avg, median: res?.biz_median }) },
       sla: { firstResponse: slaFirst, resolution: slaResolution },
-      /** CSAT (RN-43) depende das avaliações do portal (I-4) */
-      csat: null,
+      csat,
       byTeam: byTeam.map((r) => ({ teamId: r.team_id, name: r.name, received: Number(r.received), resolved: Number(r.resolved), backlog: Number(r.backlog) })),
       triage,
     };

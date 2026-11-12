@@ -10,6 +10,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@prisma/client", "pg"],
+  // Anexos enviados com a mensagem (até 5 × 4 MB; RSG-12). Na Vercel o corpo da função é limitado a 4,5 MB:
+  // o upload direto ao Blob com token restrito (ADR-008, passo 2) fica para o deploy.
+  experimental: { serverActions: { bodySizeLimit: "21mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

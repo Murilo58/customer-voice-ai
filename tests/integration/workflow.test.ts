@@ -283,7 +283,9 @@ describe("respostas públicas e e-mail (RF-ATD-04, RF-EML-01; CA-10.1, CA-10.6)"
     expect(m.text).toMatch(/\/p\/org-/);
     for (const leaked of ["Primeira resposta", "Descrição original", "Segredo interno"]) expect(m.text).not.toContain(leaked);
     expect(m.subject).toMatch(/^\[[A-Z0-9]+-\d{6}\] Pedido atrasado$/);
-    expect(m.messageId).toMatch(/^<[0-9a-f-]+@/);
+    // A organização vai como etiqueta para os eventos de entrega; o Message-ID próprio não é enviado (ADR-007).
+    expect(m.organizationId).toBe(A.organizationId);
+    expect(m).not.toHaveProperty("messageId");
     // Reentrega do mesmo job (pelo menos uma vez) não reenvia
     const email = await withTenant(A.actor, (tx) => tx.outboundEmail.findFirstOrThrow({ where: { messageId: r.messageId } }));
     expect(email).toMatchObject({ status: "sent", providerEmailId: "fake-1" });

@@ -25,3 +25,12 @@ code { word-break: break-all; }
 .filters > span { display: flex; flex-direction: column; min-width: 140px; }
 .message-public { border-left: 3px solid #2563eb; padding-left: 8px; }
 .message-internal { border-left: 3px solid #a16207; padding-left: 8px; }
+.attachments { list-style: none; padding: 0; margin: 8px 0; }
+.attachments li { margin: 2px 0; word-break: break-word; }
+.email-html { border: 1px dashed var(--line); padding: 8px; margin-top: 6px; overflow-wrap: anywhere; }
+.portal-msg { border-left: 3px solid var(--line); padding-left: 8px; margin: 12px 0; }
+.portal-msg.customer { border-left-color: var(--accent); }
+.scale { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 8px 0; }
+.scale label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; margin: 0; }
+.scale input { width: auto; }
+@media (max-width: 480px) { .card { padding: 14px; } main { padding: 16px 12px 48px; } th, td { padding: 6px 4px; } }

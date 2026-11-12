@@ -29,8 +29,8 @@ export default async function OrganizationHome({ params }: { params: Promise<{ s
             {checklist.items.map((i) => (
               <li key={i.item}>
                 {i.completedAt ? "✔" : "○"}{" "}
-                {"path" in i ? <Link href={`/o/${slug}/${i.path}`}>{i.label}</Link> : i.label}
-                {i.completedAt ? <span className="muted"> · concluído em {i.completedAt.toLocaleDateString("pt-BR")}</span> : "availableIn" in i ? <span className="muted"> · disponível no {i.availableIn}</span> : null}
+                <Link href={`/o/${slug}/${i.path}`}>{i.label}</Link>
+                {i.completedAt ? <span className="muted"> · concluído em {i.completedAt.toLocaleDateString("pt-BR")}</span> : null}
               </li>
             ))}
           </ul>

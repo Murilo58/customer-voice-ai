@@ -2,7 +2,7 @@
 
 SaaS B2B multi-tenant de atendimento com IA. Referências: `docs/PRD-Customer-Voice-AI.md` (v0.3) e `docs/architecture/`.
 
-**Estado:** incrementos I-0 a I-3 e I-5 (atendimento interno, SLA, alertas, dashboard e backoffice; IA simulada e e-mail pelo provedor `console`). O I-4 (portal e e-mail de entrada) aguarda a PoC 3. Somente dados sintéticos fora da produção.
+**Estado:** incrementos I-0 a I-5 (atendimento interno, portal do cliente, e-mail de entrada com quarentena, anexos com sanitização, CSAT, SLA, alertas, dashboard e backoffice; IA simulada). E-mail pelo provedor `console` por padrão (`resend` disponível); anexos em pasta local no desenvolvimento (`vercel-blob` disponível). Somente dados sintéticos fora da produção. Variáveis do I-4 em `.env.example`; acessibilidade do portal: `npm run a11y:portal -- <slug>`.
 
 ## Stack (versões fixadas)
 

@@ -165,23 +165,30 @@ model Organization {
   planCode      String?            @map("plan_code")
   createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  memberships   Membership[]
-  invitations   UserInvitation[]
-  auditLogs     AuditLog[]
-  companies     ClientCompany[]
-  contacts      Contact[]
-  tickets       Ticket[]
-  categories    Category[]
-  reasons       Reason[]
-  aiQuotas      AiQuota[]
-  aiUsage       AiUsageEvent[]
-  teams         Team[]
-  onboarding    OnboardingItem[]
-  outbound      OutboundEmail[]
-  holidays      Holiday[]
-  slaPolicies   SlaPolicy[]
-  slaEvents     SlaEvent[]
-  notifications Notification[]
+  memberships    Membership[]
+  invitations    UserInvitation[]
+  auditLogs      AuditLog[]
+  companies      ClientCompany[]
+  contacts       Contact[]
+  tickets        Ticket[]
+  categories     Category[]
+  reasons        Reason[]
+  aiQuotas       AiQuota[]
+  aiUsage        AiUsageEvent[]
+  teams          Team[]
+  onboarding     OnboardingItem[]
+  outbound       OutboundEmail[]
+  holidays       Holiday[]
+  slaPolicies    SlaPolicy[]
+  slaEvents      SlaEvent[]
+  notifications  Notification[]
+  attachments    Attachment[]
+  csat           CsatResponse[]
+  inbound        InboundMessage[]
+  quarantine     QuarantineItem[]
+  emailEvents    EmailEvent[]
+  portalTokens   PortalAccessToken[]
+  portalSessions PortalSession[]
 
   @@map("organizations")
 }
@@ -337,11 +344,15 @@ model Contact {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization   @relation(fields: [organizationId], references: [id])
-  company      ClientCompany? @relation(fields: [organizationId, clientCompanyId], references: [organizationId, id])
-  tickets      Ticket[]
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  company        ClientCompany?      @relation(fields: [organizationId, clientCompanyId], references: [organizationId, id])
+  tickets        Ticket[]
+  messages       TicketMessage[]
+  portalTokens   PortalAccessToken[]
+  portalSessions PortalSession[]
 
   @@unique([organizationId, id])
+  @@index([organizationId, email])
   @@map("contacts")
 }
 
@@ -383,21 +394,30 @@ model Ticket {
   /// Tempos em horas úteis para os indicadores (RN-40, RN-41)
   firstResponseBusinessSecs Int?           @map("first_response_business_secs")
   resolutionBusinessSecs    Int?           @map("resolution_business_secs")
+  /// Hash do token de resposta por e-mail r+{token}@ (RN-15a; ADR-007). Nulo em chamados anteriores ao I-4
+  replyTokenHash            String?        @unique @map("reply_token_hash")
+  /// Chamado de origem quando a resposta chega após o prazo de reabertura (CA-13.2)
+  parentTicketId            String?        @map("parent_ticket_id") @db.Uuid
   createdAt                 DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                 DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization  Organization    @relation(fields: [organizationId], references: [id])
-  contact       Contact         @relation(fields: [organizationId, contactId], references: [organizationId, id])
+  organization  Organization     @relation(fields: [organizationId], references: [id])
+  contact       Contact          @relation(fields: [organizationId, contactId], references: [organizationId, id])
   messages      TicketMessage[]
   events        TicketEvent[]
-  category      Category?       @relation(fields: [organizationId, categoryId], references: [organizationId, id])
-  reason        Reason?         @relation(fields: [organizationId, reasonId], references: [organizationId, id])
+  category      Category?        @relation(fields: [organizationId, categoryId], references: [organizationId, id])
+  reason        Reason?          @relation(fields: [organizationId, reasonId], references: [organizationId, id])
   triageRuns    TriageRun[]
-  team          Team?           @relation(fields: [organizationId, teamId], references: [organizationId, id])
-  assignee      Membership?     @relation("TicketAssignee", fields: [organizationId, assigneeMembershipId], references: [organizationId, id])
+  team          Team?            @relation(fields: [organizationId, teamId], references: [organizationId, id])
+  assignee      Membership?      @relation("TicketAssignee", fields: [organizationId, assigneeMembershipId], references: [organizationId, id])
   outbound      OutboundEmail[]
   slaEvents     SlaEvent[]
   notifications Notification[]
+  parent        Ticket?          @relation("TicketParent", fields: [organizationId, parentTicketId], references: [organizationId, id], onDelete: NoAction, onUpdate: NoAction)
+  children      Ticket[]         @relation("TicketParent")
+  attachments   Attachment[]
+  csat          CsatResponse[]
+  inbound       InboundMessage[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
@@ -413,12 +433,23 @@ model TicketMessage {
   ticketId           String      @map("ticket_id") @db.Uuid
   kind               MessageKind
   authorMembershipId String?     @map("author_membership_id") @db.Uuid
+  /// Autor contato (portal ou e-mail verificado; RN-15)
+  authorContactId    String?     @map("author_contact_id") @db.Uuid
   bodyText           String      @map("body_text")
+  /// app | portal | email
+  source             String      @default("app")
+  /// HTML recebido por e-mail, sanitizado (RN-19)
+  bodyHtmlSanitized  String?     @map("body_html_sanitized")
+  /// Associada pela quarentena: remetente não verificado (RN-17; CA-06.9)
+  unverifiedSender   Boolean     @default(false) @map("unverified_sender")
+  inboundMessageId   String?     @map("inbound_message_id") @db.Uuid
   createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  ticket   Ticket          @relation(fields: [organizationId, ticketId], references: [organizationId, id])
-  author   Membership?     @relation(fields: [organizationId, authorMembershipId], references: [organizationId, id])
-  outbound OutboundEmail[]
+  ticket        Ticket          @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+  author        Membership?     @relation(fields: [organizationId, authorMembershipId], references: [organizationId, id])
+  authorContact Contact?        @relation(fields: [organizationId, authorContactId], references: [organizationId, id])
+  outbound      OutboundEmail[]
+  attachments   Attachment[]
 
   @@unique([organizationId, id])
   @@index([organizationId, ticketId, createdAt])
@@ -690,6 +721,8 @@ model OutboundEmail {
   id              String              @id @db.Uuid
   ticketId        String?             @map("ticket_id") @db.Uuid
   messageId       String?             @map("message_id") @db.Uuid
+  /// Link mágico do portal (o token é derivado no envio; só o hash fica no banco)
+  portalTokenId   String?             @map("portal_token_id") @db.Uuid
   template        String
   toAddress       String              @map("to_address")
   rfcMessageId    String              @unique @map("rfc_message_id")
@@ -704,9 +737,11 @@ model OutboundEmail {
   organization Organization   @relation(fields: [organizationId], references: [id])
   ticket       Ticket?        @relation(fields: [organizationId, ticketId], references: [organizationId, id])
   message      TicketMessage? @relation(fields: [organizationId, messageId], references: [organizationId, id])
+  events       EmailEvent[]
 
   @@unique([organizationId, id])
   @@index([organizationId, ticketId])
+  @@index([providerEmailId])
   @@map("outbound_emails")
 }
 
@@ -780,4 +815,223 @@ model Notification {
   @@unique([organizationId, id])
   @@index([organizationId, membershipId, readAt])
   @@map("notifications")
+}
+
+// ---------- I-4: anexos, CSAT, e-mail de entrada, quarentena e portal ----------
+
+enum AttachmentStatus {
+  pending
+  released
+  quarantined
+  rejected
+  deleted
+
+  @@map("attachment_status")
+}
+
+/// Anexos (RSG-12, RSG-17 a RSG-19; ADR-008). Download só com status released, por rota autenticada.
+model Attachment {
+  organizationId        String           @map("organization_id") @db.Uuid
+  id                    String           @id @db.Uuid
+  ticketId              String           @map("ticket_id") @db.Uuid
+  messageId             String?          @map("message_id") @db.Uuid
+  /// quarantine/{orgId}/{id} → released/{orgId}/{id}; nulo quando recusado sem armazenar
+  storageKey            String?          @unique @map("storage_key")
+  originalNameSanitized String           @map("original_name_sanitized")
+  declaredType          String           @map("declared_type")
+  detectedType          String?          @map("detected_type")
+  sizeBytes             Int              @map("size_bytes")
+  status                AttachmentStatus @default(pending)
+  /// Método de CDR aplicado (reencode_image, text_normalize, csv_neutralize, pdf_structural)
+  sanitizer             String?
+  sanitizeReason        String?          @map("sanitize_reason")
+  /// not_scanned enquanto não houver antimalware aprovado (DP-12)
+  scanStatus            String           @default("not_scanned") @map("scan_status")
+  sha256                String?
+  /// contact | user | email
+  uploadedBy            String           @map("uploaded_by")
+  processedAt           DateTime?        @map("processed_at") @db.Timestamptz(3)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  ticket       Ticket         @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+  message      TicketMessage? @relation(fields: [organizationId, messageId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@index([organizationId, ticketId])
+  @@index([status, createdAt])
+  @@map("attachments")
+}
+
+/// CSAT de 1 a 5, uma vez por resolução (RF-POR-05; CA-13.1).
+model CsatResponse {
+  organizationId String   @map("organization_id") @db.Uuid
+  id             String   @id @db.Uuid
+  ticketId       String   @map("ticket_id") @db.Uuid
+  resolutionSeq  Int      @map("resolution_seq")
+  score          Int
+  comment        String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  ticket       Ticket       @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, ticketId, resolutionSeq])
+  @@index([organizationId, createdAt])
+  @@map("csat_responses")
+}
+
+enum InboundClassification {
+  new_ticket
+  associated
+  automated
+  quarantined
+  duplicate
+  rejected
+
+  @@map("inbound_classification")
+}
+
+/// Mensagens recebidas por e-mail (RF-EML-03 a 06; RN-15 a RN-19). Conteúdo original sanitizado para auditoria.
+model InboundMessage {
+  organizationId    String                @map("organization_id") @db.Uuid
+  id                String                @id @db.Uuid
+  providerEmailId   String                @unique @map("provider_email_id")
+  messageId         String?               @map("message_id")
+  fromAddress       String                @map("from_address")
+  fromName          String?               @map("from_name")
+  toAddresses       String[]              @map("to_addresses")
+  subject           String
+  bodyText          String                @map("body_text")
+  bodyHtmlSanitized String?               @map("body_html_sanitized")
+  authSpf           String?               @map("auth_spf")
+  authDkim          String?               @map("auth_dkim")
+  authDmarc         String?               @map("auth_dmarc")
+  classification    InboundClassification
+  reason            String?
+  ticketId          String?               @map("ticket_id") @db.Uuid
+  /// Mesmo remetente, assunto e corpo nos últimos 10 minutos, sem Message-ID (RN-18)
+  possibleDuplicate Boolean               @default(false) @map("possible_duplicate")
+  contentHash       String                @map("content_hash")
+  /// Metadados dos anexos (nome sanitizado, tipo, tamanho, id no provedor), sem conteúdo
+  attachmentsMeta   Json                  @default("[]") @map("attachments_meta")
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  ticket       Ticket?         @relation(fields: [organizationId, ticketId], references: [organizationId, id])
+  quarantine   QuarantineItem?
+
+  @@unique([organizationId, id])
+  @@index([organizationId, messageId])
+  @@index([organizationId, fromAddress, createdAt])
+  @@map("inbound_messages")
+}
+
+enum QuarantineStatus {
+  pending
+  associated
+  new_ticket
+  discarded
+
+  @@map("quarantine_status")
+}
+
+/// Fila de quarentena (RF-EML-08; RN-17). Decisão exige justificativa e é auditada.
+model QuarantineItem {
+  organizationId   String           @map("organization_id") @db.Uuid
+  id               String           @id @db.Uuid
+  inboundMessageId String           @map("inbound_message_id") @db.Uuid
+  reason           String
+  status           QuarantineStatus @default(pending)
+  decidedBy        String?          @map("decided_by") @db.Uuid
+  decidedAt        DateTime?        @map("decided_at") @db.Timestamptz(3)
+  justification    String?
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  inbound      InboundMessage @relation(fields: [organizationId, inboundMessageId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, inboundMessageId])
+  @@index([organizationId, status, createdAt])
+  @@map("quarantine_items")
+}
+
+/// Eventos de entrega dos e-mails de saída (RF-EML-07; CA-10.7).
+model EmailEvent {
+  organizationId  String   @map("organization_id") @db.Uuid
+  id              String   @id @db.Uuid
+  outboundEmailId String   @map("outbound_email_id") @db.Uuid
+  providerEventId String   @unique @map("provider_event_id")
+  type            String
+  occurredAt      DateTime @map("occurred_at") @db.Timestamptz(3)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  outbound     OutboundEmail @relation(fields: [organizationId, outboundEmailId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@map("email_events")
+}
+
+/// Link mágico do portal: uso único e curta validade (RF-POR-03; RSG-06; CA-07.1).
+model PortalAccessToken {
+  organizationId String    @map("organization_id") @db.Uuid
+  id             String    @id @db.Uuid
+  contactId      String    @map("contact_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt         DateTime? @map("used_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contact      Contact      @relation(fields: [organizationId, contactId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@map("portal_access_tokens")
+}
+
+model PortalSession {
+  organizationId String    @map("organization_id") @db.Uuid
+  id             String    @id @db.Uuid
+  contactId      String    @map("contact_id") @db.Uuid
+  sessionHash    String    @unique @map("session_hash")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  contact      Contact      @relation(fields: [organizationId, contactId], references: [organizationId, id])
+
+  @@unique([organizationId, id])
+  @@map("portal_sessions")
+}
+
+/// Plataforma: contadores de limite de taxa (ADR-009). Chaves são hashes, sem e-mail ou IP em claro.
+model RateLimitCounter {
+  key         String
+  windowStart DateTime @map("window_start") @db.Timestamptz(3)
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_counters")
+}
+
+/// Plataforma: recebimentos notificados pelo provedor (webhook ou reconciliação), antes de saber a organização.
+/// Sem conteúdo nem endereços: só o id do provedor e o resultado (ADR-007).
+model InboundReceipt {
+  id              String    @id @db.Uuid
+  providerEmailId String    @unique @map("provider_email_id")
+  /// pending | processed | discarded
+  status          String    @default("pending")
+  reason          String?
+  organizationId  String?   @map("organization_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("inbound_receipts")
 }

@@ -10,17 +10,19 @@ export type Permission =
   /** Atribuir/reatribuir chamados e trocar a equipe (RF-ATD-06) */
   | "tickets.assign"
   /** Dashboard operacional (RF-DSH-01); permitido também na leitura executiva (RF-ORG-10) */
-  | "dashboard.read";
+  | "dashboard.read"
+  /** Fila de quarentena de e-mails (RF-EML-08): só Gestores e Administradores */
+  | "quarantine.manage";
 
 const MATRIX: Record<MemberRole, readonly Permission[]> = {
-  admin: ["members.manage", "audit.read", "organization.read", "service.access", "settings.manage", "triage.reprocess", "tickets.assign", "dashboard.read"],
-  manager: ["organization.read", "service.access", "triage.reprocess", "tickets.assign", "dashboard.read"],
+  admin: ["members.manage", "audit.read", "organization.read", "service.access", "settings.manage", "triage.reprocess", "tickets.assign", "dashboard.read", "quarantine.manage"],
+  manager: ["organization.read", "service.access", "triage.reprocess", "tickets.assign", "dashboard.read", "quarantine.manage"],
   agent: ["organization.read", "service.access"],
 };
 
 /** "service.access" = chamados e contatos. Leitura executiva remove esse acesso (RF-ORG-10). */
 export function can(role: MemberRole, permission: Permission, executiveRead = false): boolean {
-  if (executiveRead && (permission === "service.access" || permission === "triage.reprocess" || permission === "tickets.assign")) return false;
+  if (executiveRead && (permission === "service.access" || permission === "triage.reprocess" || permission === "tickets.assign" || permission === "quarantine.manage")) return false;
   return MATRIX[role].includes(permission);
 }
 

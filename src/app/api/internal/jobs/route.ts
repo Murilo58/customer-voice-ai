@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { defaultJobHandlers } from "@/server/jobs/handlers";
+import { defaultJobHandlers, scheduleMaintenance } from "@/server/jobs/handlers";
 import { runPendingJobs } from "@/server/jobs/outbox";
 
 // Varredor da outbox (ADR-006): processa jobs pendentes ou com trava expirada.
@@ -18,6 +18,7 @@ function authorized(req: Request): boolean {
 
 async function handle(req: Request) {
   if (!authorized(req)) return new Response("Not Found", { status: 404 });
+  await scheduleMaintenance();
   const result = await runPendingJobs(25, defaultJobHandlers());
   return Response.json({ claimed: result.claimed, results: result.results });
 }

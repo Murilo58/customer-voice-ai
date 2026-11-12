@@ -21,7 +21,8 @@
     "db:bootstrap": "node scripts/db/bootstrap-roles.mjs",
     "db:seed": "tsx scripts/db/seed-synthetic.ts",
     "jobs:work": "tsx scripts/jobs-worker.ts",
-    "perf:dashboard": "tsx scripts/perf-dashboard.ts"
+    "perf:dashboard": "tsx scripts/perf-dashboard.ts",
+    "a11y:portal": "tsx scripts/a11y-portal.ts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.14",
@@ -29,23 +30,33 @@
     "@prisma/adapter-neon": "7.10.1",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "@vercel/blob": "2.8.2",
     "better-auth": "1.7.14",
     "next": "16.4.3",
     "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "sanitize-html": "2.18.1",
+    "sharp": "0.35.5",
     "uuidv7": "1.2.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/jsdom": "30.0.0",
     "@types/node": "26.6.5",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@types/sanitize-html": "2.16.2",
+    "axe-core": "4.14.0",
     "dotenv": "18.0.10",
+    "jsdom": "30.1.3",
     "prisma": "7.10.1",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "4.1.12"
+  },
+  "overrides": {
+    "zod": "$zod"
   }
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addNoteAction, publicReplyAction } from "@/app/actions/servicedesk";
+import { AttachmentInput, AttachmentList } from "@/app/attachments";
 import { ErrorAlert, param, type SearchParams } from "@/app/components";
 import { CHANNEL_LABEL, EMAIL_STATUS_LABEL, formatDuration, METRIC_LABEL, PRIORITY_LABEL, SLA_STATE_LABEL, STATUS_LABEL, TYPE_LABEL } from "@/lib/labels";
 import { getTicketSla } from "@/server/sla/service";
@@ -25,14 +26,20 @@ function describeEvent(item: Extract<TimelineItem, { kind: "event" }>, names: Re
   const who = (id: string | null | undefined) => (id ? (names[id] ?? "membro") : "ninguém");
   if (item.type === "ticket.status_changed") {
     const st = (v: string | null) => (v ? (STATUS_LABEL[v as keyof typeof STATUS_LABEL] ?? v) : "—");
-    const why = d.auto === "assumed" ? " (ao ser assumido)" : d.auto === "replied" ? " (ao ser respondido)" : d.auto ? " (automático)" : d.reason ? ` — motivo: ${d.reason}` : "";
+    const AUTO: Record<string, string> = {
+      assumed: " (ao ser assumido)", replied: " (ao ser respondido)", customer_reply: " (resposta do cliente)", reopened_by_customer: " (reaberto pelo cliente)",
+    };
+    const why = d.auto ? (AUTO[d.auto] ?? " (automático)") : d.reason ? ` — motivo: ${d.reason}` : "";
     return `Status alterado de ${st(d.from ?? null)} para ${st(d.to ?? null)}${why}`;
   }
   if (item.type === "ticket.assigned") return d.to ? `Responsável: ${who(d.to)}${d.from ? ` (antes: ${who(d.from)})` : ""}` : `Responsável removido (antes: ${who(d.from)})`;
   if (item.type === "sla.risk") return `SLA em risco: ${METRIC_LABEL[d.metric ?? ""] ?? d.metric} (80% do prazo)`;
   if (item.type === "sla.breach") return `SLA violado: ${METRIC_LABEL[d.metric ?? ""] ?? d.metric}`;
   if (item.type === "ticket.team_changed") return `Equipe alterada de ${d.from ? who(d.from) : "nenhuma"} para ${d.to ? who(d.to) : "nenhuma"}`;
-  if (item.type === "ticket.created") return `Chamado criado (canal ${CHANNEL_LABEL[d.channel as keyof typeof CHANNEL_LABEL] ?? d.channel})`;
+  if (item.type === "ticket.created") return `Chamado criado (canal ${CHANNEL_LABEL[d.channel as keyof typeof CHANNEL_LABEL] ?? d.channel})${d.parentTicketId ? " como continuação de um chamado encerrado" : ""}`;
+  if (item.type === "ticket.follow_up_created") return `O cliente respondeu após o encerramento: novo chamado vinculado nº ${d.childNumber}`;
+  if (item.type === "ticket.csat_received") return `Avaliação do cliente: ${d.score} de 5`;
+  if (item.type === "ticket.quarantine_associated") return "Mensagem da quarentena associada (remetente não verificado)";
   if (item.type === "ticket.field_changed") {
     const label = (v: string | null) => (v ? (d.field === "type" ? TYPE_LABEL[v as keyof typeof TYPE_LABEL] : PRIORITY_LABEL[v as keyof typeof PRIORITY_LABEL]) ?? v : "—");
     return `${d.field === "type" ? "Tipo alterado" : "Prioridade alterada"} de ${label(d.from ?? null)} para ${label(d.to ?? null)}`;
@@ -86,7 +93,8 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const { actor } = await requireServiceActor(slug);
   const data = await getTicket(actor, number);
   if (!data) notFound();
-  const { ticket, timeline, names } = data;
+  const { ticket, timeline, names, openingAttachments, csat } = data;
+  const files = `/o/${slug}/anexos`;
   const canAssign = can(actor.role, "tickets.assign", actor.executiveRead);
   const [view, taxonomy, teams, assignable, sla] = await Promise.all([
     getTriageView(actor, ticket.id),
@@ -126,7 +134,19 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       <div className="card">
         <h2>Descrição</h2>
         <p style={{ whiteSpace: "pre-wrap" }}>{ticket.description}</p>
+        <AttachmentList items={openingAttachments} hrefBase={files} />
+        {ticket.parentTicketId && <p className="muted">Continuação de um chamado encerrado (CA-13.2).</p>}
       </div>
+      {csat.length > 0 && (
+        <div className="card">
+          <h2>Avaliação do cliente (CSAT)</h2>
+          <ul>
+            {csat.map((c) => (
+              <li key={c.resolutionSeq}>Resolução {c.resolutionSeq}: <strong>{c.score} de 5</strong>{c.comment && <> — “{c.comment}”</>} <span className="muted">({c.createdAt.toLocaleString("pt-BR")})</span></li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="card">
         <h2>Linha do tempo</h2>
         <ol>
@@ -137,9 +157,18 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
                 <>{describeEvent(item, names)} <span className="muted">— {item.actorName ?? "Sistema"}</span></>
               ) : (
                 <div className={item.messageKind === "internal_note" ? "message-internal" : "message-public"}>
-                  <strong>{MESSAGE_LABEL[item.messageKind] ?? item.messageKind}</strong> <span className="muted">— {item.author ?? "Sistema"}</span>
+                  <strong>{MESSAGE_LABEL[item.messageKind] ?? item.messageKind}</strong> <span className="muted">— {item.author ?? (item.unverifiedSender ? "Remetente externo" : "Sistema")}{item.source === "email" ? " · por e-mail" : item.source === "portal" ? " · pelo portal" : ""}</span>
+                  {item.unverifiedSender && <span className="badge">Remetente não verificado</span>}
                   {item.emailStatus && <span className="badge">{EMAIL_STATUS_LABEL[item.emailStatus] ?? item.emailStatus}</span>}
                   <div style={{ whiteSpace: "pre-wrap" }}>{item.body}</div>
+                  {item.html && (
+                    <details>
+                      <summary>Ver e-mail original (HTML sanitizado; imagens remotas não são carregadas)</summary>
+                      {/* HTML sanitizado no recebimento (RN-19): sem scripts, formulários, iframes, estilos ou imagens remotas. */}
+                      <div className="email-html" dangerouslySetInnerHTML={{ __html: item.html }} />
+                    </details>
+                  )}
+                  <AttachmentList items={item.attachments} hrefBase={files} />
                 </div>
               )}
             </li>
@@ -149,12 +178,14 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           <form action={publicReplyAction.bind(null, slug, ticket.id, ticket.number)}>
             <label htmlFor="reply">Resposta pública (enviada por e-mail ao contato)</label>
             <textarea id="reply" name="body" required maxLength={20000} rows={4} style={{ width: "100%" }} />
+            <AttachmentInput id="reply-attachments" />
             <button type="submit">Enviar resposta</button>
           </form>
         )}
         <form action={addNoteAction.bind(null, slug, ticket.id, ticket.number)}>
           <label htmlFor="body">Nova nota interna (nunca visível ao cliente)</label>
           <textarea id="body" name="body" required maxLength={20000} rows={4} style={{ width: "100%" }} />
+          <AttachmentInput id="note-attachments" />
           <button type="submit">Adicionar nota</button>
         </form>
       </div>

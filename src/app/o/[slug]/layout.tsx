@@ -3,6 +3,7 @@ import { signOutAction } from "@/app/actions/auth";
 import { requireActor } from "@/server/identity/session";
 import { can, ROLE_LABEL } from "@/server/organizations/permissions";
 import { unreadCount } from "@/server/notifications/service";
+import { countPendingQuarantine } from "@/server/email/quarantine";
 import { listMyOrganizations } from "@/server/organizations/service";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ export default async function OrganizationLayout({ children, params }: { childre
   const memberships = await listMyOrganizations(user.id);
   const current = memberships.find((m) => m.organization.slug === slug);
   const unread = await unreadCount(actor);
+  const canQuarantine = can(actor.role, "quarantine.manage", actor.executiveRead);
+  const quarantined = canQuarantine ? await countPendingQuarantine(actor) : 0;
   return (
     <>
       <header className="top">
@@ -23,6 +26,7 @@ export default async function OrganizationLayout({ children, params }: { childre
           {can(actor.role, "dashboard.read", actor.executiveRead) && <Link href={`/o/${slug}/dashboard`}>Dashboard</Link>}
           {can(actor.role, "service.access", actor.executiveRead) && <Link href={`/o/${slug}/chamados`}>Chamados</Link>}
           {can(actor.role, "service.access", actor.executiveRead) && <Link href={`/o/${slug}/contatos`}>Contatos</Link>}
+          {canQuarantine && <Link href={`/o/${slug}/quarentena`}>Quarentena{quarantined > 0 && <span className="badge">{quarantined}</span>}</Link>}
           {can(actor.role, "members.manage") && <Link href={`/o/${slug}/membros`}>Membros</Link>}
           {can(actor.role, "settings.manage") && <Link href={`/o/${slug}/equipes`}>Equipes</Link>}
           {can(actor.role, "audit.read") && <Link href={`/o/${slug}/auditoria`}>Auditoria</Link>}

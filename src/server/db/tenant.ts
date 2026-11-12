@@ -20,6 +20,8 @@ interface Context {
   userId?: string;
   invitationTokenHash?: string;
   platformAdmin?: boolean;
+  publicSlug?: string;
+  replyTokenHash?: string;
 }
 
 async function withContext<T>(ctx: Context, fn: (tx: Tx) => Promise<T>, db: Db): Promise<T> {
@@ -28,9 +30,23 @@ async function withContext<T>(ctx: Context, fn: (tx: Tx) => Promise<T>, db: Db):
       set_config('app.org_id', ${ctx.orgId ?? ""}, true),
       set_config('app.user_id', ${ctx.userId ?? ""}, true),
       set_config('app.invitation_token_hash', ${ctx.invitationTokenHash ?? ""}, true),
-      set_config('app.platform_admin', ${ctx.platformAdmin ? "true" : ""}, true)`;
+      set_config('app.platform_admin', ${ctx.platformAdmin ? "true" : ""}, true),
+      set_config('app.public_slug', ${ctx.publicSlug ?? ""}, true),
+      set_config('app.reply_token_hash', ${ctx.replyTokenHash ?? ""}, true)`;
     return fn(tx);
   }, TX_OPTIONS);
+}
+
+/** Pré-contexto público: lê a organização ativa pelo slug (portal e endereço de entrada {slug}@). */
+export function withPublicSlug<T>(slug: string, fn: (tx: Tx) => Promise<T>, db: Db = getDb()): Promise<T> {
+  if (!/^[a-z0-9-]{3,48}$/.test(slug)) throw new Error("Slug inválido.");
+  return withContext({ publicSlug: slug }, fn, db);
+}
+
+/** Pré-contexto de e-mail: lê o chamado pelo hash do token r+{token}@ (RN-15a). */
+export function withReplyToken<T>(tokenHash: string, fn: (tx: Tx) => Promise<T>, db: Db = getDb()): Promise<T> {
+  if (!/^[0-9a-f]{64}$/.test(tokenHash)) throw new Error("Hash de token inválido.");
+  return withContext({ replyTokenHash: tokenHash }, fn, db);
 }
 
 /** Acesso a dados de uma organização. organizationId deve vir da sessão validada no servidor. */

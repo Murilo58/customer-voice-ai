@@ -249,7 +249,7 @@ describe("dashboard (RF-DSH-01 a 05; CA-14.1, CA-14.2, CA-14.4, CA-14.5)", () =>
     expect(d.byCategory.find((r) => r.key === catEntrega)?.total).toBe(2);
     expect(d.byPriority).toEqual([{ key: "medium", total: 4 }]);
     expect(d.byTeam.find((r) => r.teamId === teamX)).toMatchObject({ received: 2, resolved: 1, backlog: 1 });
-    expect(d.csat).toBeNull();
+    expect(d.csat).toMatchObject({ responses: 0, rate: null, average: null, distribution: [0, 0, 0, 0, 0] });
   });
 
   it("CA-14.5: filtros por equipe, categoria e canal alteram os indicadores", async () => {

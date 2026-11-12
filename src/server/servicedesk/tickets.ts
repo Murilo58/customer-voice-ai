@@ -1,6 +1,8 @@
 import { Prisma, TicketChannel, TicketPriority, TicketStatus, TicketType } from "@/generated/prisma/client";
 import { formatProtocol, parseProtocol } from "@/lib/labels";
-import { isUuid, newId } from "@/lib/security";
+import { hashToken, isUuid, newId } from "@/lib/security";
+import { replyToken } from "@/server/security/tokens";
+import { recordAttachments, type PreparedFile } from "@/server/attachments/service";
 import { getDb, type Db } from "@/server/db/client";
 import { withTenant, type Tx } from "@/server/db/tenant";
 import { DomainError } from "@/server/errors";
@@ -44,42 +46,73 @@ export interface ManualTicketInput {
   teamId?: string | null;
 }
 
+export interface NewTicketData {
+  id?: string;
+  contactId: string;
+  subject: string;
+  description: string;
+  channel: TicketChannel;
+  type?: TicketType | null;
+  priority?: TicketPriority | null;
+  teamId?: string | null;
+  parentTicketId?: string | null;
+  createdBy: { type: "user"; userId: string } | { type: "contact"; contactId: string } | { type: "system" };
+}
+
+/**
+ * Insere o chamado na transação corrente (já com contexto da organização): protocolo, snapshot de SLA,
+ * token de resposta por e-mail (RN-15a), evento de criação e a tarefa de triagem (RF-TRI-01; CA-08.6).
+ */
+export async function insertTicket(tx: Tx, organizationId: string, data: NewTicketData) {
+  const id = data.id ?? newId();
+  // Protocolo sequencial por organização com bloqueio de linha (RN-01): nunca reutilizado.
+  const [seq] = await tx.$queryRaw<{ ticket_seq: number; ticket_prefix: string; timezone: string; business_hours: unknown }[]>`
+    UPDATE organizations SET ticket_seq = ticket_seq + 1 WHERE id = app_current_org() RETURNING ticket_seq, ticket_prefix, timezone, business_hours`;
+  if (!seq) throw new DomainError("organization_not_found", "");
+  // Calendário e metas vigentes na criação (CA-12.3); o relógio do SLA começa a correr (Novo).
+  const now = new Date();
+  const slaSnapshot = await buildSnapshot(tx, { timezone: seq.timezone, businessHours: seq.business_hours });
+  const priority = data.priority ?? "medium";
+  await tx.ticket.create({
+    data: {
+      id, organizationId, number: seq.ticket_seq, contactId: data.contactId, subject: data.subject, description: data.description, channel: data.channel,
+      type: data.type ?? null, priority, teamId: data.teamId ?? null, parentTicketId: data.parentTicketId ?? null,
+      // Sem prioridade escolhida, a triagem sugere pela RN-10.
+      priorityManual: !!data.priority,
+      replyTokenHash: hashToken(replyToken(id)),
+      createdAt: now,
+      slaSnapshot: slaSnapshot as unknown as Prisma.InputJsonValue,
+      slaIntervals: nextIntervals([], null, "new", now) as unknown as Prisma.InputJsonValue,
+    },
+  });
+  await refreshSla(tx, organizationId, id, now);
+  const by = data.createdBy;
+  await tx.ticketEvent.create({
+    data: {
+      id: newId(), organizationId, ticketId: id, type: "ticket.created",
+      actorType: by.type, actorId: by.type === "user" ? by.userId : by.type === "contact" ? by.contactId : null,
+      data: { channel: data.channel, priority, type: data.type ?? null, teamId: data.teamId ?? null, ...(data.parentTicketId ? { parentTicketId: data.parentTicketId } : {}) },
+    },
+  });
+  const jobId = await enqueueJob(tx, { type: TRIAGE_JOB, organizationId, payload: { ticketId: id }, idempotencyKey: id });
+  return { id, number: seq.ticket_seq, protocol: formatProtocol(seq.ticket_prefix, seq.ticket_seq), jobId };
+}
+
 export async function createManualTicket(actor: TenantActor, input: ManualTicketInput, db: Db = getDb()) {
   await requirePermission(actor, "service.access", db);
   const subject = input.subject.trim();
   if (subject.length < 1 || subject.length > 200) throw new DomainError("invalid_subject", "");
   const description = body(input.description, "invalid_description");
   const type = enumValue(TicketType, input.type, "invalid_type");
-  const chosenPriority = enumValue(TicketPriority, input.priority, "invalid_priority");
-  const priority = chosenPriority ?? "medium";
-  const id = newId();
+  const priority = enumValue(TicketPriority, input.priority, "invalid_priority");
 
   return withTenant(actor, async (tx) => {
     const contact = await tx.contact.findUnique({ where: { id: input.contactId }, select: { id: true, anonymizedAt: true } });
     if (!contact || contact.anonymizedAt) throw new DomainError("contact_not_found", "");
     const [teamId = null] = await activeTeamIds(tx, input.teamId ? [input.teamId] : []);
-    // Protocolo sequencial por organização com bloqueio de linha (RN-01): nunca reutilizado.
-    const [seq] = await tx.$queryRaw<{ ticket_seq: number; ticket_prefix: string; timezone: string; business_hours: unknown }[]>`
-      UPDATE organizations SET ticket_seq = ticket_seq + 1 WHERE id = app_current_org() RETURNING ticket_seq, ticket_prefix, timezone, business_hours`;
-    if (!seq) throw new DomainError("organization_not_found", "");
-    // Calendário e metas vigentes na criação (CA-12.3); o relógio do SLA começa a correr (Novo).
-    const now = new Date();
-    const slaSnapshot = await buildSnapshot(tx, { timezone: seq.timezone, businessHours: seq.business_hours });
-    await tx.ticket.create({
-      data: {
-        id, organizationId: actor.organizationId, number: seq.ticket_seq, contactId: contact.id, subject, description, channel: "manual", type, priority, teamId,
-        // Sem prioridade escolhida, a triagem sugere pela RN-10.
-        priorityManual: chosenPriority !== null,
-        createdAt: now,
-        slaSnapshot: slaSnapshot as unknown as Prisma.InputJsonValue,
-        slaIntervals: nextIntervals([], null, "new", now) as unknown as Prisma.InputJsonValue,
-      },
+    return insertTicket(tx, actor.organizationId, {
+      contactId: contact.id, subject, description, channel: "manual", type, priority, teamId, createdBy: { type: "user", userId: actor.userId },
     });
-    await refreshSla(tx, actor.organizationId, id, now);
-    await addEvent(tx, actor, id, "ticket.created", { channel: "manual", priority, type, teamId });
-    // Exatamente uma tarefa de triagem por chamado, na mesma transação (RF-TRI-01; CA-08.6).
-    const jobId = await enqueueJob(tx, { type: TRIAGE_JOB, organizationId: actor.organizationId, payload: { ticketId: id }, idempotencyKey: id });
-    return { id, number: seq.ticket_seq, protocol: formatProtocol(seq.ticket_prefix, seq.ticket_seq), jobId };
   }, db);
 }
 
@@ -227,8 +260,19 @@ export async function listTickets(actor: TenantActor, filters: TicketFilters = {
 
 // ---------- Detalhe e linha do tempo (RF-ATD-05; CA-18.2) ----------
 
+export interface AttachmentView {
+  id: string;
+  name: string;
+  status: string;
+  sizeBytes: number;
+  reason: string | null;
+}
+
 export type TimelineItem =
-  | { kind: "message"; id: string; at: Date; messageKind: string; author: string | null; body: string; emailStatus: string | null }
+  | {
+      kind: "message"; id: string; at: Date; messageKind: string; author: string | null; body: string; emailStatus: string | null;
+      source: string; unverifiedSender: boolean; html: string | null; attachments: AttachmentView[];
+    }
   | { kind: "event"; id: string; at: Date; type: string; actorName: string | null; data: unknown };
 
 export async function getTicket(actor: TenantActor, number: number, db: Db = getDb()) {
@@ -246,14 +290,19 @@ export async function getTicket(actor: TenantActor, number: number, db: Db = get
       },
     });
     if (!ticket) return null;
-    const [messages, events] = await Promise.all([
+    const [messages, events, attachments, csat] = await Promise.all([
       tx.ticketMessage.findMany({
         where: { ticketId: ticket.id },
-        include: { author: { select: { user: { select: { name: true } } } }, outbound: { select: { status: true } } },
+        include: { author: { select: { user: { select: { name: true } } } }, authorContact: { select: { name: true } }, outbound: { select: { status: true } } },
         orderBy: { createdAt: "asc" },
       }),
       tx.ticketEvent.findMany({ where: { ticketId: ticket.id }, orderBy: { createdAt: "asc" } }),
+      tx.attachment.findMany({ where: { ticketId: ticket.id }, orderBy: { createdAt: "asc" } }),
+      tx.csatResponse.findMany({ where: { ticketId: ticket.id }, orderBy: { resolutionSeq: "asc" }, select: { resolutionSeq: true, score: true, comment: true, createdAt: true } }),
     ]);
+    const view = (a: (typeof attachments)[number]): AttachmentView => ({ id: a.id, name: a.originalNameSanitized, status: a.status, sizeBytes: a.sizeBytes, reason: a.sanitizeReason });
+    const byMessage = new Map<string, AttachmentView[]>();
+    for (const a of attachments) if (a.messageId) byMessage.set(a.messageId, [...(byMessage.get(a.messageId) ?? []), view(a)]);
     // Nomes dos atores de eventos: membros da organização ativa (vínculos visíveis pelo RLS).
     const actorIds = [...new Set(events.map((e) => e.actorId).filter((v): v is string => !!v))];
     const members = actorIds.length
@@ -271,30 +320,38 @@ export async function getTicket(actor: TenantActor, number: number, db: Db = get
       : [[], []];
     const names: Record<string, string> = Object.fromEntries([...refMembers.map((m) => [m.id, m.user.name]), ...refTeams.map((t) => [t.id, t.name])]);
     const timeline: TimelineItem[] = [
-      ...messages.map((m) => ({ kind: "message" as const, id: m.id, at: m.createdAt, messageKind: m.kind, author: m.author?.user.name ?? null, body: m.bodyText, emailStatus: m.outbound[0]?.status ?? null })),
+      ...messages.map((m) => ({
+        kind: "message" as const, id: m.id, at: m.createdAt, messageKind: m.kind, body: m.bodyText,
+        author: m.unverifiedSender ? `remetente externo, liberado por ${m.author?.user.name ?? "membro"}` : (m.author?.user.name ?? m.authorContact?.name ?? null),
+        emailStatus: m.outbound[0]?.status ?? null, source: m.source, unverifiedSender: m.unverifiedSender, html: m.bodyHtmlSanitized, attachments: byMessage.get(m.id) ?? [],
+      })),
       ...events.map((e) => ({ kind: "event" as const, id: e.id, at: e.createdAt, type: e.type, actorName: e.actorId ? (nameOf.get(e.actorId) ?? null) : null, data: e.data })),
     ].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.kind === "event" ? -1 : 1));
     const { organization, ...rest } = ticket;
-    return { ticket: { ...rest, protocol: formatProtocol(organization.ticketPrefix, ticket.number) }, timeline, names };
+    // Anexos da abertura (sem mensagem) e avaliações (CSAT) aparecem no topo do chamado.
+    const openingAttachments = attachments.filter((a) => !a.messageId).map(view);
+    return { ticket: { ...rest, protocol: formatProtocol(organization.ticketPrefix, ticket.number) }, timeline, names, openingAttachments, csat };
   }, db);
 }
 
 // ---------- Notas internas (RF-ATD-04, parte interna) ----------
 
-export async function addInternalNote(actor: TenantActor, ticketId: string, text: string, db: Db = getDb()) {
+export async function addInternalNote(actor: TenantActor, ticketId: string, text: string, opts: { files?: PreparedFile[] } = {}, db: Db = getDb()) {
   await requirePermission(actor, "service.access", db);
   const bodyText = body(text, "invalid_note");
   const id = newId();
   try {
-    await withTenant(actor, (tx) =>
-      tx.ticketMessage.create({
+    return await withTenant(actor, async (tx) => {
+      await tx.ticketMessage.create({
         data: { id, organizationId: actor.organizationId, ticketId, kind: "internal_note", authorMembershipId: actor.membershipId, bodyText },
-      }), db);
+      });
+      const r = opts.files?.length ? await recordAttachments(tx, actor.organizationId, { ticketId, messageId: id }, "user", opts.files) : null;
+      return { id, rejected: r?.rejected ?? [] };
+    }, db);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") throw new DomainError("ticket_not_found", "");
     throw e;
   }
-  return { id };
 }
 
 // ---------- Classificação manual: tipo e prioridade, com histórico ----------

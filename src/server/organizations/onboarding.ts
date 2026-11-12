@@ -11,7 +11,7 @@ export const CHECKLIST = [
   { item: "teams", label: "Equipes", path: "equipes" },
   { item: "taxonomy", label: "Categorias e motivos (com modelo sugerido)", path: "configuracoes#categorias" },
   { item: "sla", label: "Política de SLA", path: "configuracoes#sla" },
-  { item: "inbound_email", label: "E-mail de entrada", availableIn: "I-4" },
+  { item: "inbound_email", label: "E-mail de entrada", path: "configuracoes#email" },
   { item: "invite_team", label: "Convite da equipe", path: "membros" },
 ] as const;
 
@@ -19,6 +19,12 @@ export type ChecklistItem = (typeof CHECKLIST)[number]["item"];
 
 export async function markOnboarding(tx: Tx, organizationId: string, item: ChecklistItem): Promise<void> {
   await tx.onboardingItem.createMany({ data: { organizationId, item }, skipDuplicates: true });
+}
+
+/** O Administrador confirma que divulgou o endereço de entrada ou configurou o encaminhamento (RF-EML-02). */
+export async function confirmInboundEmail(actor: TenantActor, db: Db = getDb()): Promise<void> {
+  await requirePermission(actor, "settings.manage", db);
+  await withTenant(actor, (tx) => markOnboarding(tx, actor.organizationId, "inbound_email"), db);
 }
 
 export async function getChecklist(actor: TenantActor, db: Db = getDb()) {

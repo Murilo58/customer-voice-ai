@@ -8,6 +8,7 @@ import { requireActor } from "@/server/identity/session";
 import { createCompany, createContact, updateContact } from "@/server/servicedesk/contacts";
 import { addInternalNote, createManualTicket, updateTicketFields } from "@/server/servicedesk/tickets";
 import { addPublicReply, assignTicket, assumeTicket, changeStatus, setTicketTeam } from "@/server/servicedesk/workflow";
+import { filesFromForm, prepareFiles, putInQuarantine } from "@/server/attachments/service";
 import { backWithError, field } from "./helpers";
 
 export async function createCompanyAction(slug: string, form: FormData): Promise<void> {
@@ -64,13 +65,21 @@ export async function createTicketAction(slug: string, form: FormData): Promise<
   redirect(`/o/${slug}/chamados/${created.number}`);
 }
 
+/** Anexos do formulário: validados e gravados em quarantine/ antes da transação da mensagem (ADR-008). */
+async function formFiles(organizationId: string, form: FormData) {
+  const files = prepareFiles(await filesFromForm(form));
+  await putInQuarantine(organizationId, files);
+  return files;
+}
+
 export async function addNoteAction(slug: string, ticketId: string, number: number, form: FormData): Promise<void> {
   const { actor } = await requireActor(slug);
   try {
-    await addInternalNote(actor, ticketId, field(form, "body"));
+    await addInternalNote(actor, ticketId, field(form, "body"), { files: await formFiles(actor.organizationId, form) });
   } catch (e) {
     backWithError(`/o/${slug}/chamados/${number}`, e);
   }
+  after(() => runPendingJobs(5, defaultJobHandlers()).catch((e) => console.error("[jobs] after", e)));
   redirect(`/o/${slug}/chamados/${number}`);
 }
 
@@ -117,5 +126,5 @@ export async function setTicketTeamAction(slug: string, ticketId: string, number
 }
 
 export async function publicReplyAction(slug: string, ticketId: string, number: number, form: FormData): Promise<void> {
-  await ticketAction(slug, number, (actor) => addPublicReply(actor, ticketId, field(form, "body")));
+  await ticketAction(slug, number, async (actor) => addPublicReply(actor, ticketId, field(form, "body"), { files: await formFiles(actor.organizationId, form) }));
 }

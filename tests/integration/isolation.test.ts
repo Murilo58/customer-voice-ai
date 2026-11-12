@@ -1,8 +1,9 @@
 // Suíte de isolamento multi-tenant (RSG-03; ADR-002). Bloqueante no CI.
 import { beforeAll, describe, expect, it } from "vitest";
-import { generateToken, newId } from "@/lib/security";
+import { generateToken, hashToken, newId } from "@/lib/security";
 import { getDb } from "@/server/db/client";
-import { withInvitationToken, withTenant, withUser } from "@/server/db/tenant";
+import { withInvitationToken, withPublicSlug, withReplyToken, withTenant, withUser } from "@/server/db/tenant";
+import { replyToken } from "@/server/security/tokens";
 import { inviteMember } from "@/server/organizations/service";
 import { createCompany, createContact } from "@/server/servicedesk/contacts";
 import { addInternalNote, createManualTicket } from "@/server/servicedesk/tickets";
@@ -21,7 +22,9 @@ let A: Org, B: Org;
 let agentA: Awaited<ReturnType<typeof addMember>>;
 let pendingTokenA: string;
 
-const TENANT_TABLES = ["organization", "membership", "userInvitation", "auditLog", "clientCompany", "contact", "ticket", "ticketMessage", "ticketEvent", "category", "reason", "triageRun", "triageReview", "aiUsageEvent", "aiQuota", "team", "teamMember", "onboardingItem", "outboundEmail", "holiday", "slaPolicy", "slaEvent", "notification"] as const;
+const TENANT_TABLES = ["organization", "membership", "userInvitation", "auditLog", "clientCompany", "contact", "ticket", "ticketMessage", "ticketEvent", "category", "reason", "triageRun", "triageReview", "aiUsageEvent", "aiQuota", "team", "teamMember", "onboardingItem", "outboundEmail", "holiday", "slaPolicy", "slaEvent", "notification",
+  "attachment", "csatResponse", "inboundMessage", "quarantineItem", "emailEvent", "portalAccessToken", "portalSession"] as const;
+const replyTokens: Record<string, string> = {};
 const CHILD_TABLES = TENANT_TABLES.filter((t) => t !== "organization");
 const handlers = { triage: triageJobHandler({ provider: new SimulatedTriageProvider(), retryDelayMs: 0 }) };
 
@@ -56,6 +59,20 @@ beforeAll(async () => {
     await assumeTicket(org.actor, late.id);
     await withMigrator((c) => c.query("UPDATE tickets SET sla_intervals = $1::jsonb WHERE id = $2", [JSON.stringify([[new Date(Date.now() - 600_000).toISOString(), null]]), late.id]));
     await withTenant(org.actor, (tx) => refreshSla(tx, org.organizationId, late.id));
+    // Tabelas do I-4 com uma linha por organização
+    replyTokens[org.organizationId] = replyToken(t.id);
+    await withTenant(org.actor, async (tx) => {
+      const oid = org.organizationId;
+      const outbound = await tx.outboundEmail.findFirstOrThrow({ select: { id: true } });
+      await tx.attachment.create({ data: { id: newId(), organizationId: oid, ticketId: t.id, originalNameSanitized: "a.exe", declaredType: "application/x-msdownload", sizeBytes: 10, status: "rejected", sanitizeReason: "type_blocked", uploadedBy: "user" } });
+      await tx.csatResponse.create({ data: { id: newId(), organizationId: oid, ticketId: t.id, resolutionSeq: 1, score: 5 } });
+      const inboundId = newId();
+      await tx.inboundMessage.create({ data: { id: inboundId, organizationId: oid, providerEmailId: `prov-${inboundId}`, fromAddress: "x@exemplo.test", toAddresses: [], subject: "s", bodyText: "b", classification: "quarantined", contentHash: "h" } });
+      await tx.quarantineItem.create({ data: { id: newId(), organizationId: oid, inboundMessageId: inboundId, reason: "sender_mismatch" } });
+      await tx.emailEvent.create({ data: { id: newId(), organizationId: oid, outboundEmailId: outbound.id, providerEventId: `evt-${newId()}`, type: "email.delivered", occurredAt: new Date() } });
+      await tx.portalAccessToken.create({ data: { id: newId(), organizationId: oid, contactId: contact.id, tokenHash: generateToken().tokenHash, expiresAt: new Date(Date.now() + 60_000) } });
+      await tx.portalSession.create({ data: { id: newId(), organizationId: oid, contactId: contact.id, sessionHash: generateToken().tokenHash, expiresAt: new Date(Date.now() + 60_000) } });
+    });
   }
 });
 
@@ -159,5 +176,33 @@ describe("pré-contexto", () => {
     expect(seen).toEqual({ invitations: 1, orgs: [{ id: A.organizationId }], members: 0, updated: 0 });
     const none = await withInvitationToken(generateToken().tokenHash, (tx) => tx.userInvitation.count());
     expect(none).toBe(0);
+  });
+
+  it("slug público revela só a organização ativa, sem membros, contatos ou chamados, e não permite escrita", async () => {
+    const seen = await withPublicSlug(A.slug, async (tx) => ({
+      orgs: await tx.organization.findMany({ select: { id: true } }),
+      members: await tx.membership.count(),
+      contacts: await tx.contact.count(),
+      tickets: await tx.ticket.count(),
+      updated: (await tx.organization.updateMany({ data: { name: "invasão" } })).count,
+    }));
+    expect(seen).toEqual({ orgs: [{ id: A.organizationId }], members: 0, contacts: 0, tickets: 0, updated: 0 });
+    await withMigrator((c) => c.query("UPDATE organizations SET status = 'suspended' WHERE id = $1", [B.organizationId]));
+    try {
+      expect(await withPublicSlug(B.slug, (tx) => tx.organization.count())).toBe(0);
+    } finally {
+      await withMigrator((c) => c.query("UPDATE organizations SET status = 'active' WHERE id = $1", [B.organizationId]));
+    }
+  });
+
+  it("o hash do token de resposta revela só o próprio chamado, sem mensagens, e não permite escrita (RN-15a)", async () => {
+    const seen = await withReplyToken(hashToken(replyTokens[A.organizationId]!), async (tx) => ({
+      tickets: await tx.ticket.findMany({ select: { organizationId: true } }),
+      messages: await tx.ticketMessage.count(),
+      contacts: await tx.contact.count(),
+      updated: (await tx.ticket.updateMany({ data: { subject: "invasão" } })).count,
+    }));
+    expect(seen).toEqual({ tickets: [{ organizationId: A.organizationId }], messages: 0, contacts: 0, updated: 0 });
+    expect(await withReplyToken(generateToken().tokenHash, (tx) => tx.ticket.count())).toBe(0);
   });
 });

@@ -6,7 +6,8 @@ import {
   toggleAiAction,
   updateTaxonomyAction,
 } from "@/app/actions/triage";
-import { updateOrganizationAction } from "@/app/actions/teams";
+import { confirmInboundEmailAction, updateOrganizationAction } from "@/app/actions/teams";
+import { appUrl, inboundDomain } from "@/server/email/sender";
 import { addHolidayAction, removeHolidayAction, updateBusinessHoursAction, updateSlaPoliciesAction } from "@/app/actions/sla";
 import { getSlaSettings } from "@/server/sla/settings";
 import { ErrorAlert, param, Success, type SearchParams } from "@/app/components";
@@ -71,6 +72,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
     throw e;
   }
   const [taxonomy, org, sla] = await Promise.all([listTaxonomy(actor, { includeInactive: true }), getOrganizationSettings(actor), getSlaSettings(actor)]);
+  const inbound = inboundDomain();
   const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const policy = (p: string) => sla.policies.find((x) => x.priority === p);
   const hours = (m: number | null | undefined) => (m ? String(Math.round((m / 60) * 100) / 100) : "");
@@ -80,6 +82,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
       <ErrorAlert code={param(sp, "erro")} />
       <Success show={param(sp, "ok") === "organizacao"}>Dados da organização salvos.</Success>
       <Success show={param(sp, "ok") === "calendario"}>Horário comercial salvo. Vale para chamados criados a partir de agora.</Success>
+      <Success show={param(sp, "ok") === "email"}>E-mail de entrada marcado como configurado.</Success>
       <Success show={param(sp, "ok") === "sla"}>Metas de SLA salvas. Valem para chamados criados a partir de agora.</Success>
       <div className="card" id="organizacao">
         <h2>Organização (RF-ORG-07)</h2>
@@ -92,6 +95,22 @@ export default async function SettingsPage({ params, searchParams }: { params: P
           </select>
           <p className="muted">Identificador: {org.slug} · Prefixo do protocolo: {org.ticketPrefix}.</p>
           <button type="submit">Salvar</button>
+        </form>
+      </div>
+      <div className="card" id="email">
+        <h2>Portal e e-mail de entrada (RF-POR-01, RF-EML-02)</h2>
+        <p>Portal público: <a href={appUrl(`/p/${org.slug}`)}>{appUrl(`/p/${org.slug}`)}</a></p>
+        {inbound ? (
+          <>
+            <p>Endereço de entrada exclusivo: <code>{org.slug}@{inbound}</code></p>
+            <p className="muted">
+              Divulgue o endereço ou encaminhe para ele o e-mail de atendimento do seu domínio. Mensagens novas viram chamados; respostas são associadas
+              só com o token do chamado, o remetente do contato e a autenticação aprovada (RN-15). As demais vão para a quarentena.
+            </p>
+          </>
+        ) : <p className="muted">O recebimento de e-mail não está configurado neste ambiente (INBOUND_EMAIL_DOMAIN).</p>}
+        <form action={confirmInboundEmailAction.bind(null, slug)}>
+          <button type="submit">Marcar e-mail de entrada como configurado</button>
         </form>
       </div>
       <div className="card" id="calendario">

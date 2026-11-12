@@ -84,3 +84,42 @@ export function formatDuration(seconds: number | null | undefined): string {
   const m = total % 60;
   return `${neg ? "-" : ""}${h ? `${h}h` : ""}${h && m ? " " : ""}${m || !h ? `${m}min` : ""}`;
 }
+
+export const ATTACHMENT_STATUS_LABEL: Record<string, string> = {
+  pending: "em verificação",
+  released: "liberado",
+  quarantined: "em quarentena",
+  rejected: "recusado",
+  deleted: "excluído",
+};
+
+export const ATTACHMENT_REASON_LABEL: Record<string, string> = {
+  type_blocked: "tipo bloqueado",
+  type_not_allowed: "tipo não permitido",
+  type_mismatch: "conteúdo não corresponde à extensão",
+  too_large: "acima de 4 MB",
+  empty: "arquivo vazio ou indisponível",
+  too_many_files: "mais de 5 arquivos",
+  image_decode_failed: "imagem inválida",
+  invalid_utf8: "texto com codificação inválida",
+  pdf_invalid: "PDF inválido",
+  technical_error: "falha técnica na verificação",
+};
+
+export function attachmentReason(reason: string | null): string | null {
+  if (!reason) return null;
+  if (reason.startsWith("pdf_active")) return "PDF com conteúdo ativo";
+  return ATTACHMENT_REASON_LABEL[reason] ?? reason;
+}
+
+export const QUARANTINE_REASON_LABEL: Record<string, string> = {
+  sender_mismatch: "remetente diferente do contato do chamado",
+  auth_failed: "falha na autenticação do remetente (SPF/DKIM/DMARC)",
+  invalid_token: "token de resposta inválido ou de outra organização",
+  contradictory_links: "vínculos contraditórios",
+  loop_protection: "excesso de mensagens do remetente (proteção contra loop)",
+  spam: "marcada como spam pelo provedor",
+};
+
+/** Formatos aceitos no upload (RSG-12; ADR-008 C2). */
+export const ATTACHMENT_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.txt,.csv";

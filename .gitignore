@@ -11,3 +11,5 @@ next-env.d.ts
 .vercel
 # Artefatos de agentes que ferramentas instalam sem pedir (POC_RESULTS, seção 6)
 skills-lock.json
+# Anexos em desenvolvimento (STORAGE_PROVIDER=local)
+.storage/

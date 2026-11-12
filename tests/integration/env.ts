@@ -7,3 +7,6 @@ process.env.DATABASE_URL = testUrl;
 process.env.BETTER_AUTH_SECRET ??= "test-secret-test-secret-test-secret-0000";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 process.env.EMAIL_PROVIDER = "console";
+// I-4: domínio de recebimento sintético; o provedor de recebimento, o armazenamento e o anti-bot são injetados nos testes.
+process.env.INBOUND_EMAIL_DOMAIN = "in.exemplo.test";
+delete process.env.RESEND_API_KEY;

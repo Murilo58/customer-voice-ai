@@ -86,7 +86,15 @@ export default async function DashboardPage({ params, searchParams }: { params: 
                 <tr>
                   <th>SLA de 1ª resposta cumprido</th><td>{percent(data.sla.firstResponse.rate)} <span className="muted">({data.sla.firstResponse.achieved} de {data.sla.firstResponse.achieved + data.sla.firstResponse.breached})</span></td>
                   <th>SLA de resolução cumprido</th><td>{percent(data.sla.resolution.rate)} <span className="muted">({data.sla.resolution.achieved} de {data.sla.resolution.achieved + data.sla.resolution.breached})</span></td>
-                  <th>CSAT</th><td className="muted">disponível no I-4</td>
+                  <th>CSAT (notas 4 e 5)</th>
+                  <td>
+                    {percent(data.csat.rate)} <span className="muted">({data.csat.satisfied} de {data.csat.responses})</span><br />
+                    <span className="muted">média {data.csat.average ?? "—"} · resposta {percent(data.csat.responseRate)}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Distribuição do CSAT</th>
+                  <td colSpan={5}>{data.csat.distribution.map((n, i) => `${i + 1}: ${n}`).join(" · ")}</td>
                 </tr>
               </tbody>
             </table>
