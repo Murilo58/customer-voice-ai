@@ -43,7 +43,7 @@ export default async function MembersPage({ params, searchParams }: { params: Pr
             <fieldset>
               <legend>Equipes</legend>
               {teams.map((t) => (
-                <label key={t.id} style={{ display: "block" }}>
+                <label key={t.id} className="check-row">
                   <input type="checkbox" name="team_ids" value={t.id} /> {t.name}
                 </label>
               ))}

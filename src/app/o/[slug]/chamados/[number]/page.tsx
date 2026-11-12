@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { addNoteAction, publicReplyAction } from "@/app/actions/servicedesk";
 import { AttachmentInput, AttachmentList } from "@/app/attachments";
 import { ErrorAlert, param, type SearchParams } from "@/app/components";
-import { CHANNEL_LABEL, EMAIL_STATUS_LABEL, formatDuration, METRIC_LABEL, PRIORITY_LABEL, SLA_STATE_LABEL, STATUS_LABEL, TYPE_LABEL } from "@/lib/labels";
+import { Card, PageHeader, PriorityBadge, SlaBadge, StatusBadge } from "@/app/ui/primitives";
+import { CHANNEL_LABEL, EMAIL_STATUS_LABEL, formatDuration, METRIC_LABEL, PRIORITY_LABEL, STATUS_LABEL, TYPE_LABEL } from "@/lib/labels";
 import { getTicketSla } from "@/server/sla/service";
 import { requireServiceActor } from "@/server/identity/session";
 import { getTicket, type TimelineItem } from "@/server/servicedesk/tickets";
@@ -60,28 +61,21 @@ const LIVE_STATES = ["ok", "risk", "breached", "paused"];
 function SlaPanel({ sla }: { sla: NonNullable<Awaited<ReturnType<typeof getTicketSla>>> }) {
   const metrics = Object.values(sla).filter((m) => m.state !== "none");
   return (
-    <div className="card">
-      <h2>SLA</h2>
-      {metrics.length === 0 ? <p className="muted">Sem meta de SLA para a prioridade deste chamado.</p> : (
-        <table>
-          <tbody>
-            {metrics.map((m) => (
-              <tr key={m.metric}>
-                <th>{METRIC_LABEL[m.metric]}</th>
-                <td>{LIVE_STATES.includes(m.state) && m.state !== "ok" ? <span className="badge">{SLA_STATE_LABEL[m.state]}</span> : SLA_STATE_LABEL[m.state]}</td>
-                <td>
-                  {m.state === "met" || m.state === "met_late"
-                    ? <>usado {formatDuration(m.consumedSeconds)} de {formatDuration(m.targetSeconds)}</>
-                    : LIVE_STATES.includes(m.state)
-                      ? <>restam {formatDuration(m.remainingSeconds)} de {formatDuration(m.targetSeconds)}{m.dueAt && <> · prazo {m.dueAt.toLocaleString("pt-BR")}</>}</>
-                      : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+    <Card title="SLA">
+      {metrics.length === 0 ? <p className="panel-note">Sem meta de SLA para a prioridade deste chamado.</p> : metrics.map((m) => (
+        <div key={m.metric} className="sla-metric">
+          <div className="sla-metric-head">
+            <span>{METRIC_LABEL[m.metric]}</span>
+            <SlaBadge state={m.state} />
+          </div>
+          {m.state === "met" || m.state === "met_late"
+            ? <p>Usado {formatDuration(m.consumedSeconds)} de {formatDuration(m.targetSeconds)}</p>
+            : LIVE_STATES.includes(m.state)
+              ? <p>{(m.remainingSeconds ?? 0) < 0 ? <>Vencido há {formatDuration(-(m.remainingSeconds ?? 0))}</> : <>Restam {formatDuration(m.remainingSeconds)}</>} de {formatDuration(m.targetSeconds)}{m.dueAt && <> · prazo {m.dueAt.toLocaleString("pt-BR")}</>}</p>
+              : null}
+        </div>
+      ))}
+    </Card>
   );
 }
 
@@ -109,15 +103,17 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const activeOr = (list: { id: string; name: string; active: boolean }[], keep: string | null) => list.filter((i) => i.active || i.id === keep);
   return (
     <>
-      <div className="page-header">
-        <div>
-          <Link className="back-link" href={`/o/${slug}/chamados`}>← Chamados</Link>
-          <h1>{ticket.protocol} · {ticket.subject}</h1>
-          <p className="meta">
-            {STATUS_LABEL[ticket.status]} · {CHANNEL_LABEL[ticket.channel]} · criado em {ticket.createdAt.toLocaleString("pt-BR")}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        back={{ href: `/o/${slug}/chamados`, label: "Chamados" }}
+        title={<>{ticket.protocol} · {ticket.subject}</>}
+        meta={
+          <>
+            <StatusBadge status={ticket.status} />
+            <PriorityBadge priority={ticket.priority} />
+            <span>{CHANNEL_LABEL[ticket.channel]} · criado em {ticket.createdAt.toLocaleString("pt-BR")}</span>
+          </>
+        }
+      />
       <ErrorAlert code={param(sp, "erro")} />
       <div className="detail-grid">
         <div className="detail-main">

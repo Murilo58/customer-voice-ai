@@ -28,7 +28,7 @@ export default async function AlertsPage({ params }: { params: Promise<{ slug: s
             </form>
             <ul>
               {rows.map((n) => (
-                <li key={n.id} style={{ fontWeight: n.readAt ? "normal" : "bold" }}>
+                <li key={n.id} className={n.readAt ? undefined : "unread"}>
                   <span className="muted">{n.createdAt.toLocaleString("pt-BR")} · </span>
                   {describe(n.type, n.data as Record<string, unknown>)}
                   {n.ticket && <> · <Link href={`/o/${slug}/chamados/${n.ticket.number}`}>{formatProtocol(prefix, n.ticket.number)}</Link> {n.ticket.subject}</>}

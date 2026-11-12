@@ -45,7 +45,7 @@ export default async function TeamsPage({ params, searchParams }: { params: Prom
               {t.members.map((m) => (
                 <li key={m.membershipId}>
                   {m.membership.user.name} <span className="muted">({ROLE_LABEL[m.membership.role]}{m.membership.status !== "active" ? ", desativado" : ""})</span>{" "}
-                  <form action={removeTeamMemberAction.bind(null, slug, t.id, m.membershipId)} style={{ display: "inline" }}>
+                  <form action={removeTeamMemberAction.bind(null, slug, t.id, m.membershipId)} className="inline">
                     <button type="submit" className="link">remover</button>
                   </form>
                 </li>

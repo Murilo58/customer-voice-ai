@@ -140,7 +140,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
           {sla.holidays.map((h) => (
             <li key={h.id}>
               {h.date.toISOString().slice(0, 10)} · {h.name}{" "}
-              <form action={removeHolidayAction.bind(null, slug, h.id)} style={{ display: "inline" }}><button type="submit" className="link">remover</button></form>
+              <form action={removeHolidayAction.bind(null, slug, h.id)} className="inline"><button type="submit" className="link">remover</button></form>
             </li>
           ))}
           {sla.holidays.length === 0 && <li className="muted">Nenhum feriado cadastrado.</li>}
@@ -160,8 +160,8 @@ export default async function SettingsPage({ params, searchParams }: { params: P
               {Object.entries(PRIORITY_LABEL).map(([p, label]) => (
                 <tr key={p}>
                   <th>{label}</th>
-                  <td><input name={`frt_${p}`} inputMode="decimal" defaultValue={hours(policy(p)?.firstResponseMinutes)} aria-label={`Primeira resposta ${label}`} style={{ width: 80 }} /></td>
-                  <td><input name={`res_${p}`} inputMode="decimal" defaultValue={hours(policy(p)?.resolutionMinutes)} aria-label={`Resolução ${label}`} style={{ width: 80 }} /></td>
+                  <td><input name={`frt_${p}`} inputMode="decimal" defaultValue={hours(policy(p)?.firstResponseMinutes)} aria-label={`Primeira resposta ${label}`} className="input-xs" /></td>
+                  <td><input name={`res_${p}`} inputMode="decimal" defaultValue={hours(policy(p)?.resolutionMinutes)} aria-label={`Resolução ${label}`} className="input-xs" /></td>
                   <td><input type="checkbox" name={`biz_${p}`} value="1" defaultChecked={policy(p)?.businessHours ?? true} aria-label={`Horas úteis ${label}`} /></td>
                 </tr>
               ))}
@@ -174,7 +174,7 @@ export default async function SettingsPage({ params, searchParams }: { params: P
         <h2>Triagem por IA (RF-TRI-09)</h2>
         <p>
           Situação: <strong>{ai.aiEnabled ? "ativada" : "desativada"}</strong>{" "}
-          <form action={toggleAiAction.bind(null, slug, !ai.aiEnabled)} style={{ display: "inline" }}>
+          <form action={toggleAiAction.bind(null, slug, !ai.aiEnabled)} className="inline">
             <button type="submit" className="link">{ai.aiEnabled ? "desativar" : "ativar"}</button>
           </form>
         </p>

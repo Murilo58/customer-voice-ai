@@ -29,7 +29,7 @@ export default async function NewTicketPage({ params, searchParams }: { params: 
             <label htmlFor="subject">Assunto</label>
             <input id="subject" name="subject" required maxLength={200} />
             <label htmlFor="description">Descrição</label>
-            <textarea id="description" name="description" required maxLength={20000} rows={8} style={{ width: "100%" }} />
+            <textarea id="description" name="description" required maxLength={20000} rows={8} />
             <label htmlFor="type">Tipo (opcional; se vazio, a triagem sugere)</label>
             <select id="type" name="type" defaultValue="">
               <option value="">Não classificado</option>

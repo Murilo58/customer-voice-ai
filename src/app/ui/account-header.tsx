@@ -19,7 +19,7 @@ export function AccountHeader({ user }: { user: { name: string; email: string } 
           </span>
         </div>
         <nav className="account-actions" aria-label="Conta">
-          <Link href="/conta/seguranca" className="btn btn-ghost btn-sm"><Icon name="lock" /><span className="btn-label">Segurança da conta</span></Link>
+          <Link href="/conta/seguranca" className="btn btn-secondary btn-sm"><Icon name="lock" /><span className="btn-label">Segurança da conta</span></Link>
           <form action={signOutAction}>
             <button type="submit" className="secondary btn-sm">Sair</button>
           </form>

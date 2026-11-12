@@ -116,7 +116,7 @@ export default function LandingPage() {
               </p>
               <div className="mk-actions">
                 <Cta />
-                <a href="#funcionalidades" className="btn btn-ghost">Ver funcionalidades</a>
+                <a href="#funcionalidades" className="btn btn-secondary">Ver funcionalidades</a>
               </div>
             </div>
             <figure className="mock" aria-label="Ilustração de um chamado com sugestões da IA e prazo de SLA">

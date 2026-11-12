@@ -46,7 +46,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
                 <td>{o.name}<br /><span className="muted">{o.slug} · criada em {o.createdAt.toLocaleDateString("pt-BR")}</span></td>
                 <td>
                   {o.status === "active" ? "Ativa" : <strong>Suspensa</strong>}{" "}
-                  <form action={setOrganizationStatusAction.bind(null, o.id, o.status === "active" ? "suspended" : "active")} style={{ display: "inline" }}>
+                  <form action={setOrganizationStatusAction.bind(null, o.id, o.status === "active" ? "suspended" : "active")} className="inline">
                     <button type="submit" className="link">{o.status === "active" ? "suspender" : "reativar"}</button>
                   </form>
                 </td>
@@ -54,7 +54,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
                 <td>
                   {o.quota.used} de {o.quota.limit} ({o.quota.limit ? Math.round((o.quota.used / o.quota.limit) * 100) : 100}%)
                   <form action={setOrganizationQuotaAction.bind(null, o.id)}>
-                    <input name="limit" type="number" min={0} max={1000000} defaultValue={o.quota.limit} aria-label="Cota mensal" style={{ width: 100 }} />{" "}
+                    <input name="limit" type="number" min={0} max={1000000} defaultValue={o.quota.limit} aria-label="Cota mensal" className="input-sm" />{" "}
                     <button type="submit" className="link">salvar</button>
                   </form>
                 </td>
