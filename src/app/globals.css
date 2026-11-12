@@ -21,6 +21,7 @@
   --accent-fg: #ffffff;
   --danger: #c92a2a;
   --danger-soft: #fff1f1;
+  --danger-fg: #ffffff;
   --ok: #2b8a3e;
   --ok-soft: #ebfbee;
   --warn: #a35b00;
@@ -78,6 +79,7 @@
     --accent-fg: #0f1115;
     --danger: #ff6b6b;
     --danger-soft: #2d1719;
+    --danger-fg: #1f0b0b;
     --ok: #69db7c;
     --ok-soft: #142619;
     --warn: #ffc078;
@@ -153,7 +155,8 @@ button.secondary { background: var(--card); color: var(--fg); border-color: var(
 button.secondary:hover { background: var(--surface-2); }
 button.link { background: none; color: var(--accent); padding: 0; margin: 0; border: 0; font-weight: 500; }
 button.link:hover { text-decoration: underline; }
-button.danger { background: var(--danger); color: #fff; }
+button.danger { background: var(--danger); color: var(--danger-fg); }
+button.danger:hover { background: color-mix(in srgb, var(--danger) 88%, black); }
 
 /* ---------- Shell da área interna ---------- */
 .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }

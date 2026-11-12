@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Icon, type IconName } from "./icons";
+import { initials } from "./initials";
 
 export interface NavItem {
   href: string;
@@ -17,11 +18,6 @@ export interface NavItem {
 export interface NavGroup {
   title: string;
   items: NavItem[];
-}
-
-function initials(name: string): string {
-  const parts = name.split(/\s+/).filter((w) => /^\p{L}/u.test(w));
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
 }
 
 /**
