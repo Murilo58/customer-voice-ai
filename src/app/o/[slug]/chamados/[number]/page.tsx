@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { addNoteAction, publicReplyAction } from "@/app/actions/servicedesk";
-import { AttachmentInput, AttachmentList } from "@/app/attachments";
+import { AttachmentList } from "@/app/attachments";
+import { Icon } from "@/app/ui/icons";
+import { initials } from "@/app/ui/initials";
 import { ErrorAlert, param, type SearchParams } from "@/app/components";
-import { Card, PageHeader, PriorityBadge, SlaBadge, StatusBadge } from "@/app/ui/primitives";
+import { Badge, Card, PageHeader, PriorityBadge, SlaBadge, StatusBadge, type Tone } from "@/app/ui/primitives";
 import { CHANNEL_LABEL, EMAIL_STATUS_LABEL, formatDuration, METRIC_LABEL, PRIORITY_LABEL, STATUS_LABEL, TYPE_LABEL } from "@/lib/labels";
 import { getTicketSla } from "@/server/sla/service";
 import { requireServiceActor } from "@/server/identity/session";
@@ -14,6 +16,11 @@ import { can } from "@/server/organizations/permissions";
 import { listAssignableMembers, listTeams } from "@/server/organizations/teams";
 import { TriagePanel } from "./triage-panel";
 import { WorkflowPanel } from "./workflow-panel";
+import { Composer } from "./composer";
+
+const MESSAGE_TONE: Record<string, Tone> = { public_reply: "info", internal_note: "warn", customer_message: "neutral", system: "neutral" };
+const EMAIL_TONE: Record<string, Tone> = { delivered: "ok", sent: "ok", queued: "neutral", delayed: "warn", bounced: "danger", complained: "danger", failed: "danger" };
+const timeFmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 
 const MESSAGE_LABEL: Record<string, string> = {
   public_reply: "Resposta pública",
@@ -98,6 +105,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     getTicketSla(actor, ticket.id),
   ]);
   const teamSuggested = !!view.run?.reviews.some((r) => r.field === "team" && r.outcome === "pending");
+  const messageCount = timeline.filter((i) => i.kind === "message").length;
   const replyable = ["new", "open", "waiting_customer", "waiting_third_party"].includes(ticket.status);
   // Itens desativados continuam visíveis no chamado que já os usa (RN-12), mas não são novas opções.
   const activeOr = (list: { id: string; name: string; active: boolean }[], keep: string | null) => list.filter((i) => i.active || i.id === keep);
@@ -117,54 +125,62 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       <ErrorAlert code={param(sp, "erro")} />
       <div className="detail-grid">
         <div className="detail-main">
-          <div className="card">
-            <h2>Descrição</h2>
+          <Card title="Descrição">
             <p className="prewrap">{ticket.description}</p>
             <AttachmentList items={openingAttachments} hrefBase={files} />
             {ticket.parentTicketId && <p className="muted">Continuação de um chamado encerrado (CA-13.2).</p>}
-          </div>
-          <div className="card">
-            <h2>Linha do tempo</h2>
-            <ol className="timeline">
-              {timeline.map((item) => (
-                <li key={item.id}>
-                  <span className="when">{item.at.toLocaleString("pt-BR")}</span>
-                  {item.kind === "event" ? (
-                    <div>{describeEvent(item, names)} <span className="muted">— {item.actorName ?? "Sistema"}</span></div>
-                  ) : (
-                    <div className={item.messageKind === "internal_note" ? "message-internal" : "message-public"}>
-                      <strong>{MESSAGE_LABEL[item.messageKind] ?? item.messageKind}</strong> <span className="muted">— {item.author ?? (item.unverifiedSender ? "Remetente externo" : "Sistema")}{item.source === "email" ? " · por e-mail" : item.source === "portal" ? " · pelo portal" : ""}</span>
-                      {item.unverifiedSender && <span className="badge">Remetente não verificado</span>}
-                      {item.emailStatus && <span className="badge">{EMAIL_STATUS_LABEL[item.emailStatus] ?? item.emailStatus}</span>}
-                      <div className="prewrap">{item.body}</div>
-                      {item.html && (
-                        <details>
-                          <summary>Ver e-mail original (HTML sanitizado; imagens remotas não são carregadas)</summary>
-                          {/* HTML sanitizado no recebimento (RN-19): sem scripts, formulários, iframes, estilos ou imagens remotas. */}
-                          <div className="email-html" dangerouslySetInnerHTML={{ __html: item.html }} />
-                        </details>
-                      )}
-                      <AttachmentList items={item.attachments} hrefBase={files} />
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-            {replyable && (
-              <form className="composer" action={publicReplyAction.bind(null, slug, ticket.id, ticket.number)}>
-                <label htmlFor="reply">Resposta pública (enviada por e-mail ao contato)</label>
-                <textarea id="reply" name="body" required maxLength={20000} rows={4} />
-                <AttachmentInput id="reply-attachments" />
-                <button type="submit">Enviar resposta</button>
-              </form>
+          </Card>
+          <Card title="Conversa" actions={<span className="muted conv-count">{messageCount} mensage{messageCount === 1 ? "m" : "ns"} · {timeline.length - messageCount} evento{timeline.length - messageCount === 1 ? "" : "s"}</span>}>
+            {timeline.length === 0 ? <p className="muted">Nenhuma interação registrada ainda.</p> : (
+              <ol className="conversation">
+                {timeline.map((item) => {
+                  if (item.kind === "event") {
+                    return (
+                      <li key={item.id} className="conv-event">
+                        <span className="conv-event-dot" aria-hidden="true" />
+                        <span className="conv-event-text">{describeEvent(item, names)} <span className="muted">· {item.actorName ?? "Sistema"}</span></span>
+                        <time dateTime={item.at.toISOString()}>{timeFmt.format(item.at)}</time>
+                      </li>
+                    );
+                  }
+                  const kind = item.messageKind;
+                  const author = item.author ?? (item.unverifiedSender ? "Remetente externo" : "Sistema");
+                  const fromCustomer = kind === "customer_message";
+                  return (
+                    <li key={item.id} className={`conv-msg conv-${kind}`}>
+                      <span className={`avatar conv-avatar${fromCustomer ? " conv-avatar-customer" : kind === "internal_note" ? " conv-avatar-note" : ""}`} aria-hidden="true">{initials(author)}</span>
+                      <article className="conv-bubble" aria-label={`${MESSAGE_LABEL[kind] ?? kind} de ${author}`}>
+                        <header className="conv-head">
+                          <strong>{author}</strong>
+                          <Badge tone={MESSAGE_TONE[kind] ?? "neutral"}>{kind === "internal_note" && <Icon name="lock" />}{MESSAGE_LABEL[kind] ?? kind}</Badge>
+                          {item.source === "email" && <span className="muted">por e-mail</span>}
+                          {item.source === "portal" && <span className="muted">pelo portal</span>}
+                          {item.unverifiedSender && <Badge tone="warn">Remetente não verificado</Badge>}
+                          {item.emailStatus && <Badge tone={EMAIL_TONE[item.emailStatus] ?? "neutral"}>{EMAIL_STATUS_LABEL[item.emailStatus] ?? item.emailStatus}</Badge>}
+                          <time dateTime={item.at.toISOString()}>{timeFmt.format(item.at)}</time>
+                        </header>
+                        <div className="prewrap conv-body">{item.body}</div>
+                        {item.html && (
+                          <details className="conv-html">
+                            <summary>Ver e-mail original (HTML sanitizado; imagens remotas não são carregadas)</summary>
+                            {/* HTML sanitizado no recebimento (RN-19): sem scripts, formulários, iframes, estilos ou imagens remotas. */}
+                            <div className="email-html" dangerouslySetInnerHTML={{ __html: item.html }} />
+                          </details>
+                        )}
+                        <AttachmentList items={item.attachments} hrefBase={files} />
+                      </article>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
-            <form className="composer" action={addNoteAction.bind(null, slug, ticket.id, ticket.number)}>
-              <label htmlFor="body">Nova nota interna (nunca visível ao cliente)</label>
-              <textarea id="body" name="body" required maxLength={20000} rows={4} />
-              <AttachmentInput id="note-attachments" />
-              <button type="submit" className="secondary">Adicionar nota</button>
-            </form>
-          </div>
+            <Composer
+              replyable={replyable}
+              replyAction={publicReplyAction.bind(null, slug, ticket.id, ticket.number)}
+              noteAction={addNoteAction.bind(null, slug, ticket.id, ticket.number)}
+            />
+            {!replyable && <p className="panel-note">Chamado {STATUS_LABEL[ticket.status].toLowerCase()}: resposta pública indisponível; notas internas continuam permitidas.</p>}
+          </Card>
         </div>
         <aside className="detail-side" aria-label="Dados e ações do chamado">
           <div className="card">
