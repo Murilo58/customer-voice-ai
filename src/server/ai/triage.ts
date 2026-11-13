@@ -45,13 +45,15 @@ export const REVIEWABLE_FIELDS = ["type", "category", "reason", "priority"] as c
 export type ReviewableField = (typeof REVIEWABLE_FIELDS)[number];
 export type TriageField = ReviewableField | "team";
 
-/** Carrega o que a triagem precisa, já minimizado (sem dados do contato; RIA-09). */
+/** Carrega o que a triagem precisa, já minimizado (RIA-09). Do contato, só o nome: serve para mascarar menções no texto e nunca é enviado. */
 export async function loadTriageContext(tx: Tx, ticketId: string) {
-  const ticket = await tx.ticket.findUnique({
+  const found = await tx.ticket.findUnique({
     where: { id: ticketId },
-    select: { id: true, organizationId: true, subject: true, description: true, channel: true, type: true, categoryId: true, reasonId: true, teamId: true, priority: true, priorityManual: true },
+    select: { id: true, organizationId: true, subject: true, description: true, channel: true, type: true, categoryId: true, reasonId: true, teamId: true, priority: true, priorityManual: true, contact: { select: { name: true } } },
   });
-  if (!ticket) return null;
+  if (!found) return null;
+  const { contact, ...rest } = found;
+  const ticket = { ...rest, contactName: contact.name };
   const [org, categories, reasons, teams] = await Promise.all([
     tx.organization.findUniqueOrThrow({ where: { id: ticket.organizationId }, select: { aiEnabled: true } }),
     tx.category.findMany({ where: { active: true }, select: { id: true, name: true, defaultPriority: true }, orderBy: { name: "asc" } }),

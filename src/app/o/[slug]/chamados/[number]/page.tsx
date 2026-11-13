@@ -29,6 +29,17 @@ const MESSAGE_LABEL: Record<string, string> = {
   system: "Sistema",
 };
 
+const FIELD_NAME: Record<string, string> = { type: "tipo", category: "categoria", reason: "motivo", priority: "prioridade", team: "equipe" };
+const FIELD_CHANGED_LABEL: Record<string, string> = { type: "Tipo alterado", category: "Categoria alterada", reason: "Motivo alterado", priority: "Prioridade alterada", team: "Equipe alterada" };
+
+/** Valor legível de um campo de classificação: rótulo do enum ou nome da categoria, motivo ou equipe. */
+function fieldValue(field: string | null | undefined, v: string | null | undefined, names: Record<string, string>): string {
+  if (!v) return "—";
+  if (field === "type") return TYPE_LABEL[v as keyof typeof TYPE_LABEL] ?? v;
+  if (field === "priority") return PRIORITY_LABEL[v as keyof typeof PRIORITY_LABEL] ?? v;
+  return names[v] ?? "item removido";
+}
+
 function describeEvent(item: Extract<TimelineItem, { kind: "event" }>, names: Record<string, string>): string {
   const d = (item.data ?? {}) as Record<string, string | null>;
   const who = (id: string | null | undefined) => (id ? (names[id] ?? "membro") : "ninguém");
@@ -49,14 +60,13 @@ function describeEvent(item: Extract<TimelineItem, { kind: "event" }>, names: Re
   if (item.type === "ticket.csat_received") return `Avaliação do cliente: ${d.score} de 5`;
   if (item.type === "ticket.quarantine_associated") return "Mensagem da quarentena associada (remetente não verificado)";
   if (item.type === "ticket.field_changed") {
-    const label = (v: string | null) => (v ? (d.field === "type" ? TYPE_LABEL[v as keyof typeof TYPE_LABEL] : PRIORITY_LABEL[v as keyof typeof PRIORITY_LABEL]) ?? v : "—");
-    return `${d.field === "type" ? "Tipo alterado" : "Prioridade alterada"} de ${label(d.from ?? null)} para ${label(d.to ?? null)}`;
+    return `${FIELD_CHANGED_LABEL[d.field ?? ""] ?? "Campo alterado"} de ${fieldValue(d.field, d.from, names)} para ${fieldValue(d.field, d.to, names)}`;
   }
   const TRIAGE_EVENTS: Record<string, string> = {
     "triage.suggested": "Triagem por IA sugeriu classificação",
     "triage.unavailable": `Triagem indisponível (${d.reason ?? "falha"})`,
     "triage.reviewed": "Sugestões da IA confirmadas",
-    "triage.field_reviewed": `Sugestão de ${d.field === "team" ? "equipe" : d.field} ${d.outcome === "accepted" ? "aceita" : "alterada"}${d.field === "team" && d.final ? ` (${who(d.final)})` : ""}`,
+    "triage.field_reviewed": `Sugestão de ${FIELD_NAME[d.field ?? ""] ?? "campo"} ${d.outcome === "accepted" ? "aceita" : "alterada"}${d.final ? ` (${fieldValue(d.field, d.final, names)})` : ""}`,
     "triage.reprocess_requested": "Reprocessamento da triagem solicitado",
   };
   return TRIAGE_EVENTS[item.type] ?? item.type;

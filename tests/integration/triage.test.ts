@@ -6,6 +6,7 @@ import { withTenant } from "@/server/db/tenant";
 import { DomainError, ForbiddenError } from "@/server/errors";
 import { ProviderError, type ProviderResponse, type TriageProvider } from "@/server/ai/provider";
 import { runTriage, triageJobHandler } from "@/server/ai/triage";
+import { GeminiTriageProvider } from "@/server/ai/gemini";
 import type { Taxonomy, TriageInput } from "@/server/ai/triage-schema";
 import { claimJobs, runJobById, runPendingJobs } from "@/server/jobs/outbox";
 import { createContact } from "@/server/servicedesk/contacts";
@@ -125,7 +126,7 @@ describe("triagem (RF-TRI-01 a 04, RF-TRI-07)", () => {
     const ticket = await state(A, t.id);
     expect(ticket).toMatchObject({ triageState: "suggested", type: "complaint", categoryId: entregaId, reasonId: atrasoId, priority: "medium", sentiment: "negative" });
     const run = await withTenant(A.actor, (tx) => tx.triageRun.findFirstOrThrow({ where: { ticketId: t.id }, include: { reviews: true } }));
-    expect(run).toMatchObject({ status: "succeeded", model: "fake-model", promptVersion: "triage-v2", inputTokens: 1000, outputTokens: 100, thoughtTokens: 20 });
+    expect(run).toMatchObject({ status: "succeeded", model: "fake-model", promptVersion: "triage-v5", inputTokens: 1000, outputTokens: 100, thoughtTokens: 20 });
     expect(run.reviews.map((r) => r.field).sort()).toEqual(["category", "priority", "reason", "type"]);
     expect(run.reviews.every((r) => r.outcome === "pending")).toBe(true);
     const usageRows = await withTenant(A.actor, (tx) => tx.aiUsageEvent.findMany({ where: { triageRunId: run.id } }));
@@ -142,14 +143,17 @@ describe("triagem (RF-TRI-01 a 04, RF-TRI-07)", () => {
 
   it("minimização: o contato não é enviado e o texto é mascarado (RIA-09)", async () => {
     const c = await createContact(A.actor, { name: "Nome Secreto", email: email("secreto") });
-    const t = await createManualTicket(A.actor, { contactId: c.id, subject: "CPF 529.982.247-25", description: "ligue (11) 98765-4321" });
+    const t = await createManualTicket(A.actor, {
+      contactId: c.id, subject: "CPF 529.982.247-25",
+      description: "Aqui é o Nome Secreto, ligue (11) 98765-4321. Entregar na Rua Exemplo, 123, ap. 4, CEP 01310-100. Assinado: Secreto.",
+    });
     const provider = new FakeProvider([ok()]);
     await runJobById(t.jobId!, handlersWith(provider));
     const sent = provider.inputs[0]!.content + provider.inputs[0]!.systemInstruction;
-    expect(sent).not.toContain("Nome Secreto");
-    expect(sent).not.toContain("secreto");
-    expect(sent).toContain("[CPF]");
-    expect(sent).toContain("[TELEFONE]");
+    expect(sent).not.toMatch(/secreto/i);
+    expect(sent).not.toContain("Rua Exemplo");
+    expect(sent).not.toContain("01310-100");
+    for (const marker of ["[CPF]", "[TELEFONE]", "[NOME]", "[ENDERECO]", "[CEP]"]) expect(sent).toContain(marker);
   });
 
   it("a taxonomia enviada é só da organização (RIA-11; RN-14)", async () => {
@@ -327,7 +331,7 @@ describe("revisão humana (RF-TRI-05, RF-TRI-06; RN-11)", () => {
     await setClassificationField(agent.actor, t.id, "category", pagamentoId);
     const review = await withTenant(A.actor, (tx) => tx.triageReview.findFirstOrThrow({ where: { run: { ticketId: t.id }, field: "category" }, include: { run: true } }));
     expect(review).toMatchObject({ outcome: "changed", suggestedValue: entregaId, finalValue: pagamentoId, reviewerMembershipId: agent.actor.membershipId });
-    expect(review.run).toMatchObject({ model: "fake-model", promptVersion: "triage-v2" });
+    expect(review.run).toMatchObject({ model: "fake-model", promptVersion: "triage-v5" });
     expect((await state(A, t.id)).categoryId).toBe(pagamentoId);
     // Aceitar o valor sugerido conta como aceito
     await setClassificationField(agent.actor, t.id, "type", "complaint");
@@ -394,16 +398,60 @@ describe("taxonomia e configuração (RF-ATD-13, RF-TRI-09)", () => {
     await runJobById(t.jobId!, handlersWith(new FakeProvider([ok()])));
     const item = await createTaxonomyItem(A.actor, "category", { name: `Renomear ${Date.now()}` });
     await setClassificationField(agent.actor, t.id, "category", item.id);
-    await updateTaxonomyItem(A.actor, "category", item.id, { name: `Renomeada ${Date.now()}` });
+    const renamed = `Renomeada ${Date.now()}`;
+    await updateTaxonomyItem(A.actor, "category", item.id, { name: renamed });
     await updateTaxonomyItem(A.actor, "category", item.id, { active: false });
     expect((await state(A, t.id)).categoryId).toBe(item.id);
     const active = await listTaxonomy(A.actor);
     expect(active.categories.find((c) => c.id === item.id)).toBeUndefined();
+    // A linha do tempo resolve o nome da categoria citada nos eventos, mesmo desativada (sem exibir o id).
+    const view = await getTicket(A.actor, (await state(A, t.id)).number);
+    expect(view!.names[item.id]).toBe(renamed);
   });
 
   it("nome duplicado é recusado e só o Administrador configura", async () => {
     expect(await code(createTaxonomyItem(A.actor, "category", { name: "Entrega" }))).toBe("taxonomy_name_taken");
     expect(await code(createTaxonomyItem(agent.actor, "category", { name: "Qualquer" }))).toBe("forbidden");
     expect(await code(setAiEnabled(manager.actor, false))).toBe("forbidden");
+  });
+});
+
+describe("provedor Gemini no pipeline (SDK oficial com fetch falso, sem rede)", () => {
+  const body = { type: "complaint", category_id: null, reason_id: null, team_id: null, urgency: "high", sentiment: "negative", escalation_risk: true, risk_signals: ["procon"], rationale: "Atraso com menção ao Procon." };
+  const okResponse = () => new Response(JSON.stringify({
+    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify(body) }] }, finishReason: "STOP" }],
+    usageMetadata: { promptTokenCount: 812, candidatesTokenCount: 96, thoughtsTokenCount: 4 },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const errorResponse = (status: number) => new Response(JSON.stringify({ error: { code: status, message: "erro sintético", status: "X" } }), { status, headers: { "content-type": "application/json" } });
+  const geminiWith = (...responses: (() => Response)[]) => {
+    const calls: string[] = [];
+    const fetchFn = (async (_url: unknown, init?: RequestInit) => { calls.push(String(init?.body)); return (responses.length > 1 ? responses.shift()! : responses[0]!)(); }) as typeof fetch;
+    return { provider: new GeminiTriageProvider({ model: "gemini-3.1-flash-lite", apiKey: "chave-falsa-de-teste", fetch: fetchFn }), calls };
+  };
+
+  it("HTTP 429 gera nova tentativa; sucesso registra tokens e custo reais do Gemini e o risco eleva a prioridade", async () => {
+    const t = await newTicket(A, { subject: "Pedido atrasado", description: "Vou ao Procon. CPF 529.982.247-25" });
+    const { provider, calls } = geminiWith(() => errorResponse(429), okResponse);
+    expect(await runJobById(t.jobId!, handlersWith(provider))).toBe("succeeded");
+    expect(calls).toHaveLength(2);
+    expect(calls.every((c) => c.includes("[CPF]") && !c.includes("529.982.247-25"))).toBe(true);
+    expect(await state(A, t.id)).toMatchObject({ triageState: "suggested", type: "complaint", escalationRisk: true, priority: "high" });
+    const run = await withTenant(A.actor, (tx) => tx.triageRun.findFirstOrThrow({ where: { ticketId: t.id } }));
+    expect(run).toMatchObject({ status: "succeeded", model: "gemini-3.1-flash-lite", inputTokens: 812, outputTokens: 96, thoughtTokens: 4 });
+    const rows = await withTenant(A.actor, (tx) => tx.aiUsageEvent.findMany({ where: { triageRunId: run.id }, orderBy: { createdAt: "asc" } }));
+    expect(rows.map((r) => r.outcome).sort()).toEqual(["success", "transient_error"]);
+    // 812 × 0,25 + (96 + 4) × 1,50 = 353 micro-dólares (tabela versionada)
+    expect(rows.find((r) => r.outcome === "success")).toMatchObject({ model: "gemini-3.1-flash-lite", costUsdMicros: 353n });
+    expect(rows.find((r) => r.outcome === "transient_error")).toMatchObject({ costUsdMicros: 0n });
+  });
+
+  it("HTTP 401 (chave inválida) não repete e o chamado segue em modo degradado", async () => {
+    const t = await newTicket(A);
+    const { provider, calls } = geminiWith(() => errorResponse(401));
+    await runJobById(t.jobId!, handlersWith(provider));
+    expect(calls).toHaveLength(1);
+    expect((await state(A, t.id)).triageState).toBe("unavailable");
+    const run = await withTenant(A.actor, (tx) => tx.triageRun.findFirstOrThrow({ where: { ticketId: t.id } }));
+    expect(run).toMatchObject({ status: "failed", errorCode: "http_401" });
   });
 });

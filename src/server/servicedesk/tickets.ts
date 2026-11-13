@@ -309,16 +309,21 @@ export async function getTicket(actor: TenantActor, number: number, db: Db = get
       ? await tx.membership.findMany({ where: { userId: { in: actorIds } }, select: { userId: true, user: { select: { name: true } } } })
       : [];
     const nameOf = new Map(members.map((m) => [m.userId, m.user.name]));
-    // Nomes de responsáveis e equipes citados nos eventos de atribuição (inclusive equipes arquivadas).
-    const refs = events.flatMap((e) => (["ticket.assigned", "ticket.team_changed", "triage.field_reviewed"].includes(e.type) ? Object.values(e.data as Record<string, unknown>) : []))
+    // Nomes de responsáveis, equipes, categorias e motivos citados nos eventos (inclusive itens arquivados).
+    const refs = events.flatMap((e) => (["ticket.assigned", "ticket.team_changed", "triage.field_reviewed", "ticket.field_changed"].includes(e.type) ? Object.values(e.data as Record<string, unknown>) : []))
       .filter((v): v is string => isUuid(v as string));
-    const [refMembers, refTeams] = refs.length
+    const [refMembers, refTeams, refCategories, refReasons] = refs.length
       ? await Promise.all([
           tx.membership.findMany({ where: { id: { in: refs } }, select: { id: true, user: { select: { name: true } } } }),
           tx.team.findMany({ where: { id: { in: refs } }, select: { id: true, name: true } }),
+          tx.category.findMany({ where: { id: { in: refs } }, select: { id: true, name: true } }),
+          tx.reason.findMany({ where: { id: { in: refs } }, select: { id: true, name: true } }),
         ])
-      : [[], []];
-    const names: Record<string, string> = Object.fromEntries([...refMembers.map((m) => [m.id, m.user.name]), ...refTeams.map((t) => [t.id, t.name])]);
+      : [[], [], [], []];
+    const names: Record<string, string> = Object.fromEntries([
+      ...refMembers.map((m) => [m.id, m.user.name]),
+      ...[...refTeams, ...refCategories, ...refReasons].map((t) => [t.id, t.name]),
+    ]);
     const timeline: TimelineItem[] = [
       ...messages.map((m) => ({
         kind: "message" as const, id: m.id, at: m.createdAt, messageKind: m.kind, body: m.bodyText,
