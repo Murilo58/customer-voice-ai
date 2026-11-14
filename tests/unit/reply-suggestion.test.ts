@@ -55,6 +55,10 @@ describe("prompt da sugestão", () => {
     expect(REPLY_SYSTEM_INSTRUCTION).toMatch(/Não afirme ações da equipe que não constem do histórico/);
     expect(REPLY_SYSTEM_INSTRUCTION).toContain('"encaminhamos"');
   });
+  it("proíbe citar departamentos ou responsáveis internos não identificados no chamado", () => {
+    expect(REPLY_SYSTEM_INSTRUCTION).toMatch(/Não mencione departamentos, equipes, setores, responsáveis ou áreas internas/);
+    expect(REPLY_SYSTEM_INSTRUCTION).toContain('"equipe financeira"');
+  });
 });
 
 describe("saída da sugestão", () => {
