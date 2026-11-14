@@ -22,6 +22,21 @@ export interface TriageProvider {
   generate(input: TriageInput, taxonomy: Taxonomy): Promise<ProviderResponse>;
 }
 
+/** Geração de texto livre (sugestão de resposta). O conteúdo chega já minimizado e mascarado. */
+export interface TextInput {
+  systemInstruction: string;
+  content: string;
+  maxOutputTokens: number;
+  temperature: number;
+}
+
+export interface TextProvider {
+  readonly model: string;
+  generateText(input: TextInput): Promise<ProviderResponse>;
+}
+
+export type AiProvider = TriageProvider & TextProvider;
+
 /** transient: timeout, 429, 5xx (nova tentativa). permanent: chave, modelo, requisição (sem nova tentativa). */
 export class ProviderError extends Error {
   constructor(
@@ -35,7 +50,7 @@ export class ProviderError extends Error {
 const estimateTokens = (s: string) => Math.ceil(s.length / 4);
 
 /** Classificação por palavras-chave, apenas para desenvolvimento e testes com dados sintéticos. */
-export class SimulatedTriageProvider implements TriageProvider {
+export class SimulatedTriageProvider implements AiProvider {
   readonly model = "simulated-v1";
 
   async generate(input: TriageInput, taxonomy: Taxonomy): Promise<ProviderResponse> {
@@ -72,15 +87,23 @@ export class SimulatedTriageProvider implements TriageProvider {
       latencyMs: Math.round(performance.now() - started),
     };
   }
+
+  /** Resposta fixa e cordial, sem rede: serve para desenvolvimento e testes da sugestão de resposta. */
+  async generateText(input: TextInput): Promise<ProviderResponse> {
+    const text = "Olá, [NOME]. Agradecemos o contato e lamentamos o transtorno. Recebemos sua mensagem e vamos analisar o caso com atenção. Retornaremos com uma atualização assim que tivermos novidades.";
+    return { text, usage: { inputTokens: estimateTokens(input.systemInstruction + input.content), outputTokens: estimateTokens(text), thoughtTokens: 0 }, latencyMs: 0 };
+  }
 }
 
 /** Provedor que falha de forma permanente: a triagem segue o modo degradado (RF-TRI-07) sem chamar a rede. */
-const unavailableProvider = (model: string, code: string): TriageProvider => ({
+const unavailableProvider = (model: string, code: string): AiProvider => ({
   model,
   generate: async () => { throw new ProviderError("permanent", code); },
+  generateText: async () => { throw new ProviderError("permanent", code); },
 });
 
-export function getTriageProvider(env: Record<string, string | undefined> = process.env): TriageProvider {
+/** Mesmo provedor e modelo da triagem para todas as funcionalidades de IA (ADR-005). */
+export function getTriageProvider(env: Record<string, string | undefined> = process.env): AiProvider {
   const provider = env.AI_PROVIDER || "simulated";
   if (provider === "simulated") return new SimulatedTriageProvider();
   if (provider === "gemini") {

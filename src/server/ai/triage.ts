@@ -4,6 +4,7 @@ import { getDb, type Db } from "@/server/db/client";
 import { withTenant, type Tx } from "@/server/db/tenant";
 import type { ClaimedJob } from "@/server/jobs/outbox";
 import { refreshSla } from "@/server/sla/service";
+import { aiAuthorizedForOrg } from "./privacy";
 import { suggestPriority } from "./priority";
 import { costUsdMicros, getTriageProvider, PRICE_VERSION, ProviderError, type ProviderUsage, type TriageProvider } from "./provider";
 import { buildTriageInput, idempotencyKey, InvalidOutputError, parseTriageOutput, PROMPT_VERSION, type Taxonomy, type TriageSuggestion } from "./triage-schema";
@@ -31,6 +32,7 @@ export type TriageOutcome =
   | "suggested"
   | "skipped_idempotent"
   | "unavailable_ai_disabled"
+  | "unavailable_privacy"
   | "unavailable_quota"
   | "unavailable_budget"
   | "unavailable_failed"
@@ -55,7 +57,7 @@ export async function loadTriageContext(tx: Tx, ticketId: string) {
   const { contact, ...rest } = found;
   const ticket = { ...rest, contactName: contact.name };
   const [org, categories, reasons, teams] = await Promise.all([
-    tx.organization.findUniqueOrThrow({ where: { id: ticket.organizationId }, select: { aiEnabled: true } }),
+    tx.organization.findUniqueOrThrow({ where: { id: ticket.organizationId }, select: { id: true, slug: true, aiEnabled: true } }),
     tx.category.findMany({ where: { active: true }, select: { id: true, name: true, defaultPriority: true }, orderBy: { name: "asc" } }),
     tx.reason.findMany({ where: { active: true }, select: { id: true, name: true, defaultPriority: true }, orderBy: { name: "asc" } }),
     tx.team.findMany({ where: { archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -70,7 +72,7 @@ async function markUnavailable(tx: Tx, ticketId: string, organizationId: string,
 }
 
 /** Teto global (RF-CON-04). Retorna false se a plataforma atingiu o limite do mês. */
-async function globalBudgetAvailable(db: Db): Promise<boolean> {
+export async function globalBudgetAvailable(db: Db): Promise<boolean> {
   const period = currentPeriod();
   // O teto definido pelo Superadmin vale para os meses seguintes (RF-CON-04); sem definição, o padrão da plataforma.
   const last = await db.platformAiBudget.findFirst({ orderBy: { period: "desc" }, select: { limitUsdMicros: true } });
@@ -79,7 +81,7 @@ async function globalBudgetAvailable(db: Db): Promise<boolean> {
   return !b.trippedAt && b.spentUsdMicros < b.limitUsdMicros;
 }
 
-async function addGlobalSpend(db: Db, micros: bigint) {
+export async function addGlobalSpend(db: Db, micros: bigint) {
   if (micros <= 0n) return;
   const period = currentPeriod();
   await db.$executeRaw`UPDATE platform_ai_budget SET spent_usd_micros = spent_usd_micros + ${micros},
@@ -88,7 +90,7 @@ async function addGlobalSpend(db: Db, micros: bigint) {
 }
 
 /** Reserva atômica de uma operação da cota mensal (RF-CON-02) e alertas de 80% e 100% (RF-CON-03). */
-async function reserveQuota(tx: Tx, organizationId: string): Promise<boolean> {
+export async function reserveQuota(tx: Tx, organizationId: string): Promise<boolean> {
   const period = currentPeriod();
   const org = await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { aiQuotaOps: true } });
   await tx.aiQuota.createMany({ data: { organizationId, period, limitOps: org.aiQuotaOps ?? quotaDefault() }, skipDuplicates: true });
@@ -177,6 +179,11 @@ export async function runTriage(organizationId: string, payload: TriagePayload, 
   if (!ctx.org.aiEnabled) {
     await withTenant(scope, (tx) => markUnavailable(tx, ctx.ticket.id, organizationId, "ai_disabled"), db);
     return "unavailable_ai_disabled";
+  }
+  // DP-01: organização não autorizada para testes sintéticos não envia nada à IA, mesmo com a IA ativada.
+  if (!aiAuthorizedForOrg(ctx.org)) {
+    await withTenant(scope, (tx) => markUnavailable(tx, ctx.ticket.id, organizationId, "privacy_block"), db);
+    return "unavailable_privacy";
   }
 
   const input = buildTriageInput(ctx.ticket, ctx.taxonomy);

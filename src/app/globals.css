@@ -469,6 +469,9 @@ a.kpi:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); 
 .composer-hint { display: flex; align-items: center; gap: 6px; margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--muted); }
 .composer-hint svg { width: 13px; height: 13px; }
 .composer-actions { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
+.composer-ai { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.composer-ai-status { margin: 0; font-size: var(--text-xs); color: var(--muted); min-width: 0; flex: 1 1 200px; }
+.composer-ai-status.is-error { color: var(--danger); }
 .btn-note { background: var(--tag-warn); color: var(--card); }
 .btn-note:hover { background: color-mix(in srgb, var(--tag-warn) 85%, black); color: var(--card); }
 

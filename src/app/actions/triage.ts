@@ -6,10 +6,31 @@ import { defaultJobHandlers } from "@/server/jobs/handlers";
 import type { ReviewableField } from "@/server/ai/triage";
 import { requireActor } from "@/server/identity/session";
 import { runPendingJobs } from "@/server/jobs/outbox";
-import { DomainError } from "@/server/errors";
+import { DomainError, ForbiddenError } from "@/server/errors";
 import { applySuggestedTaxonomy, createTaxonomyItem, setAiEnabled, updateTaxonomyItem, type TaxonomyKind } from "@/server/servicedesk/taxonomy";
 import { confirmAllSuggestions, requestReprocess, setClassificationField } from "@/server/servicedesk/triage-review";
 import { backWithError, field } from "./helpers";
+import { messageFor } from "@/lib/messages";
+import { suggestReply } from "@/server/ai/reply-suggestion";
+
+export type SuggestReplyResult = { ok: true; text: string } | { ok: false; message: string };
+
+/**
+ * Sugestão de resposta com IA (só o id do chamado vem do navegador). Devolve o texto para o editor:
+ * não envia nem grava mensagem. Falhas viram mensagem amigável, sem detalhes internos.
+ */
+export async function suggestReplyAction(slug: string, ticketId: string): Promise<SuggestReplyResult> {
+  const { actor } = await requireActor(slug);
+  try {
+    const { text } = await suggestReply(actor, ticketId);
+    return { ok: true, text };
+  } catch (e) {
+    if (e instanceof DomainError) return { ok: false, message: messageFor(e.code)! };
+    if (e instanceof ForbiddenError) return { ok: false, message: "Você não tem permissão para esta ação." };
+    console.error("suggestReplyAction falhou", e instanceof Error ? e.name : "erro");
+    return { ok: false, message: messageFor("ai_reply_failed")! };
+  }
+}
 
 const ticketPath = (slug: string, number: number) => `/o/${slug}/chamados/${number}`;
 

@@ -11,6 +11,8 @@ process.env.EMAIL_PROVIDER = "console";
 process.env.AI_PROVIDER = "simulated";
 delete process.env.GEMINI_API_KEY;
 delete process.env.AI_TRIAGE_MODEL;
+// DP-01: com o provedor simulado, todas as organizações de teste estão autorizadas (testes específicos restringem).
+process.env.AI_SYNTHETIC_ORGS = "*";
 // I-4: domínio de recebimento sintético; o provedor de recebimento, o armazenamento e o anti-bot são injetados nos testes.
 process.env.INBOUND_EMAIL_DOMAIN = "in.exemplo.test";
 delete process.env.RESEND_API_KEY;

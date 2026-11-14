@@ -17,6 +17,8 @@ import { listAssignableMembers, listTeams } from "@/server/organizations/teams";
 import { TriagePanel } from "./triage-panel";
 import { WorkflowPanel } from "./workflow-panel";
 import { Composer } from "./composer";
+import { suggestReplyAction } from "@/app/actions/triage";
+import { replySuggestionAvailable } from "@/server/ai/reply-suggestion";
 
 const MESSAGE_TONE: Record<string, Tone> = { public_reply: "info", internal_note: "warn", customer_message: "neutral", system: "neutral" };
 const EMAIL_TONE: Record<string, Tone> = { delivered: "ok", sent: "ok", queued: "neutral", delayed: "warn", bounced: "danger", complained: "danger", failed: "danger" };
@@ -107,12 +109,13 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const { ticket, timeline, names, openingAttachments, csat } = data;
   const files = `/o/${slug}/anexos`;
   const canAssign = can(actor.role, "tickets.assign", actor.executiveRead);
-  const [view, taxonomy, teams, assignable, sla] = await Promise.all([
+  const [view, taxonomy, teams, assignable, sla, aiReply] = await Promise.all([
     getTriageView(actor, ticket.id),
     listTaxonomy(actor, { includeInactive: true }),
     listTeams(actor),
     canAssign ? listAssignableMembers(actor) : Promise.resolve([]),
     getTicketSla(actor, ticket.id),
+    replySuggestionAvailable(actor),
   ]);
   const teamSuggested = !!view.run?.reviews.some((r) => r.field === "team" && r.outcome === "pending");
   const messageCount = timeline.filter((i) => i.kind === "message").length;
@@ -188,6 +191,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               replyable={replyable}
               replyAction={publicReplyAction.bind(null, slug, ticket.id, ticket.number)}
               noteAction={addNoteAction.bind(null, slug, ticket.id, ticket.number)}
+              suggestAction={replyable && aiReply ? suggestReplyAction.bind(null, slug, ticket.id) : undefined}
             />
             {!replyable && <p className="panel-note">Chamado {STATUS_LABEL[ticket.status].toLowerCase()}: resposta pública indisponível; notas internas continuam permitidas.</p>}
           </Card>
