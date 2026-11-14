@@ -45,11 +45,20 @@ export function prepareFiles(files: IncomingFile[]): PreparedFile[] {
   });
 }
 
+/**
+ * Campo de arquivo deixado vazio. O navegador envia a parte com `filename=""` e 0 bytes; nas server actions
+ * do Next o React remonta o arquivo com `new File(chunks, filename)` e o busboy entrega `filename` indefinido,
+ * então o nome chega como a string "undefined". Nenhum dos dois casos é um arquivo escolhido pelo usuário.
+ */
+export function isEmptyFileField(v: File): boolean {
+  return v.size === 0 && (!v.name || v.name === "undefined");
+}
+
 /** Lê arquivos de um formulário (portal ou atendimento). Campos vazios são ignorados. */
 export async function filesFromForm(form: FormData, field = "attachments"): Promise<IncomingFile[]> {
   const out: IncomingFile[] = [];
   for (const v of form.getAll(field)) {
-    if (typeof v === "string" || v.size === 0 && !v.name) continue;
+    if (typeof v === "string" || isEmptyFileField(v)) continue;
     // Arquivo grande demais é recusado sem ler o conteúdo inteiro.
     const content = v.size > 4 * 1024 * 1024 + 1 ? Buffer.alloc(0) : Buffer.from(await v.arrayBuffer());
     out.push({ name: v.name, size: v.size, declaredType: v.type, content });
