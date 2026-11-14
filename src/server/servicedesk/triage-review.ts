@@ -26,7 +26,10 @@ export async function getTriageView(actor: TenantActor, ticketId: string, db: Db
   return withTenant(actor, async (tx) => {
     const run = await latestRun(tx, ticketId);
     const lastAttempt = await tx.triageRun.findFirst({ where: { ticketId }, orderBy: { createdAt: "desc" }, select: { status: true, errorCode: true, createdAt: true, model: true } });
-    return { run, lastAttempt };
+    // Motivo da última indisponibilidade (ai_disabled, quota_exhausted, global_budget ou falha), para explicar no painel.
+    const unavailable = await tx.ticketEvent.findFirst({ where: { ticketId, type: "triage.unavailable" }, orderBy: { createdAt: "desc" }, select: { data: true } });
+    const unavailableReason = ((unavailable?.data ?? {}) as { reason?: string }).reason ?? null;
+    return { run, lastAttempt, unavailableReason };
   }, db);
 }
 

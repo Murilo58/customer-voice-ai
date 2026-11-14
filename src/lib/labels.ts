@@ -23,6 +23,17 @@ export const STATUS_LABEL: Record<TicketStatus, string> = {
 
 export const SENTIMENT_LABEL: Record<Sentiment, string> = { very_negative: "Muito negativo", negative: "Negativo", neutral: "Neutro", positive: "Positivo" };
 
+export const URGENCY_LABEL: Record<string, string> = { low: "Baixa", medium: "Média", high: "Alta" };
+
+export const RISK_SIGNAL_LABEL: Record<string, string> = {
+  procon: "Procon",
+  reclame_aqui: "Reclame Aqui",
+  acao_judicial: "ação judicial",
+  cancelamento: "cancelamento",
+  seguranca: "segurança",
+  outro: "outro",
+};
+
 export const TRIAGE_STATE_LABEL: Record<TriageState, string> = {
   pending: "Aguardando triagem",
   suggested: "Sugestões aguardando revisão",
