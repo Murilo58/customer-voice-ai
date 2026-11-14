@@ -24,11 +24,32 @@ describe("mascaramento (RIA-09)", () => {
   it("substitui dados pessoais por marcadores", () => {
     const r = maskPII("Sou fulano@exemplo.test, CPF 529.982.247-25, CNPJ 11.222.333/0001-81, cartão 4111 1111 1111 1111, tel (11) 98765-4321.");
     expect(r.text).toBe("Sou [EMAIL], CPF [CPF], CNPJ [CNPJ], cartão [CARTAO], tel [TELEFONE].");
-    expect(r.counts).toEqual({ email: 1, cnpj: 1, cpf: 1, card: 1, phone: 1 });
+    expect(r.counts).toEqual({ email: 1, cnpj: 1, cpf: 1, card: 1, phone: 1, cep: 0, address: 0, name: 0 });
   });
 
   it("não altera números comuns como valores e protocolos", () => {
     expect(maskPII("Pedido 12345 de R$ 250,00 em 3 parcelas").text).toBe("Pedido 12345 de R$ 250,00 em 3 parcelas");
+    expect(maskPII("Pedido 47710 chegou com 2 dias de atraso.").text).toBe("Pedido 47710 chegou com 2 dias de atraso.");
+  });
+
+  it("mascara CEP e logradouro com número e complemento", () => {
+    expect(maskPII("Endereço: Av. Exemplo, 1000, ap. 52. Telefone (21) 98765-4321.").text).toBe("Endereço: [ENDERECO]. Telefone [TELEFONE].");
+    expect(maskPII("Moro na Rua das Flores 230, bloco B, CEP 01310-100.").text).toBe("Moro na [ENDERECO], [CEP].");
+    expect(maskPII("Entregar na Avenida Brasil nº 45 - casa 2").text).toBe("Entregar na [ENDERECO]");
+    expect(maskPII("cep 04538133").counts.cep).toBe(1);
+  });
+
+  it("não confunde texto corrido com endereço", () => {
+    const t = "O entregador deixou na rua errada há 3 dias e o pacote 2 sumiu.";
+    expect(maskPII(t).text).toBe(t);
+  });
+
+  it("mascara o nome do contato (completo e partes), sem tocar partículas e outras palavras", () => {
+    const r = maskPII("Aqui é a Maria da Silva Souza. A MARIA pediu e a Silvana confirmou; o Souza também.", { knownNames: ["Maria da Silva Souza"] });
+    expect(r.text).toBe("Aqui é a [NOME]. A [NOME] pediu e a Silvana confirmou; o [NOME] também.");
+    expect(r.counts.name).toBe(3);
+    expect(maskPII("Olá, João.", { knownNames: ["João Ávila"] }).text).toBe("Olá, [NOME].");
+    expect(maskPII("Sem nome conhecido.", { knownNames: [null, "  "] }).text).toBe("Sem nome conhecido.");
   });
 });
 
