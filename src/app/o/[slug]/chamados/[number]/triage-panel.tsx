@@ -82,7 +82,8 @@ export function TriagePanel({ slug, ticket, view, categories, reasons, canReproc
               {FIELD_LABEL[f]} {pending.has(f) && <Badge tone="ai">Sugestão da IA</Badge>}
             </label>
             <div className="inline-form">
-              <select id={`triage-${f}`} name="value" defaultValue={current[f] ?? ""}>
+              {/* key: recria o select quando o valor muda (ex.: sugestão chegando na atualização automática), pois defaultValue só vale na montagem */}
+              <select key={current[f] ?? ""} id={`triage-${f}`} name="value" defaultValue={current[f] ?? ""}>
                 <option value="" disabled>Sem valor</option>
                 {options[f].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
