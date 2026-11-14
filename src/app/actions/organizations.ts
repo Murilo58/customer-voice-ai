@@ -50,7 +50,7 @@ export async function createOrganizationInvitationAction(form: FormData): Promis
   try {
     const inv = await createOrganizationInvitation(admin.id, field(form, "email"));
     link = appUrl(`/criar-organizacao/${inv.token}`);
-    await getEmailSender().send({ to: inv.email, subject: "Convite para o beta do Customer Voice AI", text: `Crie sua organização: ${link}\nO convite expira em 7 dias.` });
+    await getEmailSender().send({ to: inv.email, subject: "Convite para o beta do VoxDesk AI", text: `Crie sua organização: ${link}\nO convite expira em 7 dias.` });
   } catch (e) {
     backWithError("/admin", e);
   }
@@ -87,7 +87,7 @@ export async function inviteMemberAction(slug: string, form: FormData): Promise<
       role: field(form, "role") as MemberRole,
       teamIds: form.getAll("team_ids").filter((v): v is string => typeof v === "string"),
     });
-    await getEmailSender().send({ to: inv.email, subject: "Convite para a equipe no Customer Voice AI", text: `Aceite o convite: ${appUrl(`/convite/${inv.token}`)}\nO convite expira em 7 dias.` });
+    await getEmailSender().send({ to: inv.email, subject: "Convite para a equipe no VoxDesk AI", text: `Aceite o convite: ${appUrl(`/convite/${inv.token}`)}\nO convite expira em 7 dias.` });
   } catch (e) {
     backWithError(back, e);
   }

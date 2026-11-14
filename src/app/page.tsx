@@ -9,7 +9,7 @@ import "./marketing.css";
 // Indexação continua desativada (metadata raiz) enquanto o deploy for de teste, não comercial.
 
 export const metadata: Metadata = {
-  title: "Customer Voice AI — atendimento com IA para PMEs",
+  title: "VoxDesk AI — atendimento com IA para PMEs",
   description: "Central de atendimento multiempresa com triagem por IA revisada pela equipe, SLA, portal do cliente e indicadores.",
 };
 
@@ -254,7 +254,7 @@ export default function LandingPage() {
           <div className="mk-container mk-cta-inner">
             <div>
               <h2 id="cta-title">Acesso por convite</h2>
-              <p>O Customer Voice AI está em beta fechado. Se você recebeu um convite, entre com o seu e-mail.</p>
+              <p>O VoxDesk AI está em beta fechado. Se você recebeu um convite, entre com o seu e-mail.</p>
             </div>
             <Cta />
           </div>
