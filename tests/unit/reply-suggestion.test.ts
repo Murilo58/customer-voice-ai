@@ -50,8 +50,9 @@ describe("contexto da sugestão de resposta", () => {
 });
 
 describe("prompt da sugestão", () => {
-  it("proíbe afirmar ações da equipe não registradas no chamado (reply-v2)", () => {
-    expect(REPLY_PROMPT_VERSION).toBe("reply-v2");
+  it("proíbe afirmar ações da equipe não registradas no chamado (reply-v3)", () => {
+    expect(REPLY_PROMPT_VERSION).toBe("reply-v3");
+    expect(REPLY_SYSTEM_INSTRUCTION).toContain('"seguimos acompanhando"');
     expect(REPLY_SYSTEM_INSTRUCTION).toMatch(/Não afirme ações da equipe que não constem do histórico/);
     expect(REPLY_SYSTEM_INSTRUCTION).toContain('"encaminhamos"');
   });
