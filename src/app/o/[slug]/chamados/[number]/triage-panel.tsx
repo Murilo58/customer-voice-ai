@@ -1,6 +1,7 @@
 import { confirmAllAction, reprocessAction, setFieldAction } from "@/app/actions/triage";
 import { Badge, btn, Card, Field } from "@/app/ui/primitives";
-import { PRIORITY_LABEL, SENTIMENT_LABEL, TRIAGE_STATE_LABEL, TYPE_LABEL } from "@/lib/labels";
+import { PRIORITY_LABEL, RISK_SIGNAL_LABEL, SENTIMENT_LABEL, TRIAGE_STATE_LABEL, TYPE_LABEL, URGENCY_LABEL } from "@/lib/labels";
+import { TriageRefresh } from "./triage-refresh";
 import type { ReviewableField } from "@/server/ai/triage";
 import type { getTriageView } from "@/server/servicedesk/triage-review";
 import type { Tone } from "@/app/ui/primitives";
@@ -25,7 +26,7 @@ const TRIAGE_TONE: Record<keyof typeof TRIAGE_STATE_LABEL, Tone> = { pending: "n
 
 export function TriagePanel({ slug, ticket, view, categories, reasons, canReprocess }: Props) {
   const pending = new Map((view.run?.reviews ?? []).filter((r) => r.outcome === "pending").map((r) => [r.field, r]));
-  const result = (view.run?.result ?? null) as { rationale?: string; risk_signals?: string[]; priority_rules?: string[] } | null;
+  const result = (view.run?.result ?? null) as { rationale?: string; risk_signals?: string[]; priority_rules?: string[]; urgency?: string } | null;
   const options: Record<ReviewableField, { value: string; label: string }[]> = {
     type: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })),
     category: categories.map((c) => ({ value: c.id, label: c.name })),
@@ -40,7 +41,14 @@ export function TriagePanel({ slug, ticket, view, categories, reasons, canReproc
         <Badge tone={TRIAGE_TONE[ticket.triageState]}>{TRIAGE_STATE_LABEL[ticket.triageState]}</Badge>
       </div>
       {view.run && <p className="panel-note">Modelo {view.run.model}, prompt {view.run.promptVersion}</p>}
+      {ticket.triageState === "pending" && <TriageRefresh />}
       {ticket.triageState === "unavailable" && <p className="panel-note">Triagem indisponível: classifique manualmente; o atendimento segue normalmente.</p>}
+      {result?.urgency && (
+        <div className="panel-row">
+          <span>Urgência</span>
+          <span>{URGENCY_LABEL[result.urgency] ?? result.urgency}</span>
+        </div>
+      )}
       {ticket.sentiment && (
         <div className="panel-row">
           <span>Sentimento</span>
@@ -53,7 +61,7 @@ export function TriagePanel({ slug, ticket, view, categories, reasons, canReproc
           {ticket.escalationRisk ? <Badge tone="danger">Sim</Badge> : <span>Não</span>}
         </div>
       )}
-      {ticket.escalationRisk && result?.risk_signals?.length ? <p className="panel-note">Sinais: {result.risk_signals.join(", ")}</p> : null}
+      {ticket.escalationRisk && result?.risk_signals?.length ? <p className="panel-note">Sinais: {result.risk_signals.map((s) => RISK_SIGNAL_LABEL[s] ?? s).join(", ")}</p> : null}
       {/* Justificativa da IA exibida como texto puro (CA-08.4) */}
       {result?.rationale && <p className="panel-note"><strong>Justificativa da IA:</strong> {result.rationale}</p>}
 
