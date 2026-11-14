@@ -87,6 +87,12 @@ const MESSAGES: Record<string, string> = {
   quarantine_already_decided: "Esta mensagem já teve uma decisão registrada.",
   justification_required: "Informe uma justificativa de 10 a 1.000 caracteres.",
   invalid_action: "Ação inválida.",
+  ai_not_authorized: "Esta organização não está autorizada a usar IA até a aprovação DP-01 (somente organizações sintéticas liberadas).",
+  ai_disabled: "A IA está desativada nesta organização.",
+  ai_quota_exhausted: "A cota mensal de IA da organização foi atingida.",
+  ai_budget_exhausted: "O teto mensal de gastos com IA da plataforma foi atingido.",
+  ai_reply_in_progress: "Uma sugestão foi pedida há instantes para este chamado. Aguarde alguns segundos antes de pedir outra.",
+  ai_reply_failed: "Não foi possível gerar a sugestão agora. Escreva a resposta manualmente ou tente de novo.",
   unexpected: "Não foi possível concluir a operação. Tente novamente.",
 };
 

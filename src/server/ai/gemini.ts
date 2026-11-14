@@ -1,6 +1,6 @@
 import { ApiError, GoogleGenAI, ThinkingLevel, type GenerateContentParameters, type GenerateContentResponse } from "@google/genai";
 import type { Taxonomy, TriageInput } from "./triage-schema";
-import { ProviderError, type ProviderResponse, type TriageProvider } from "./provider";
+import { ProviderError, type AiProvider, type ProviderResponse, type TextInput } from "./provider";
 
 // Provedor Gemini (ADR-005; AI_ARCHITECTURE seção 3). Só é usado com AI_PROVIDER=gemini; o padrão continua "simulated".
 // - Recebe o conteúdo já minimizado e mascarado por buildTriageInput (RIA-08, RIA-09): este módulo não lê dados do chamado.
@@ -35,7 +35,7 @@ const TRANSIENT_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 /** Respostas bloqueadas não melhoram com nova tentativa. */
 const BLOCKED_FINISH = new Set(["SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY", "LANGUAGE"]);
 
-export class GeminiTriageProvider implements TriageProvider {
+export class GeminiTriageProvider implements AiProvider {
   readonly model: string;
   private readonly models: GeminiModels;
   private readonly timeoutMs: number;
@@ -53,21 +53,32 @@ export class GeminiTriageProvider implements TriageProvider {
   }
 
   async generate(input: TriageInput, _taxonomy: Taxonomy): Promise<ProviderResponse> {
+    return this.call(input.content, {
+      systemInstruction: input.systemInstruction,
+      responseMimeType: "application/json",
+      responseJsonSchema: input.responseJsonSchema,
+      temperature: 0,
+      maxOutputTokens: this.maxOutputTokens,
+    });
+  }
+
+  /** Texto livre (sugestão de resposta), com o mesmo tempo limite, tratamento de erros e registro de tokens. */
+  async generateText(input: TextInput): Promise<ProviderResponse> {
+    return this.call(input.content, {
+      systemInstruction: input.systemInstruction,
+      temperature: input.temperature,
+      maxOutputTokens: Math.min(input.maxOutputTokens, this.maxOutputTokens),
+    });
+  }
+
+  private async call(contents: string, config: NonNullable<GenerateContentParameters["config"]>): Promise<ProviderResponse> {
     const started = performance.now();
     let res: GenerateContentResponse;
     try {
       res = await this.models.generateContent({
         model: this.model,
-        contents: input.content,
-        config: {
-          systemInstruction: input.systemInstruction,
-          responseMimeType: "application/json",
-          responseJsonSchema: input.responseJsonSchema,
-          temperature: 0,
-          maxOutputTokens: this.maxOutputTokens,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-          abortSignal: AbortSignal.timeout(this.timeoutMs),
-        },
+        contents,
+        config: { ...config, thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL }, abortSignal: AbortSignal.timeout(this.timeoutMs) },
       });
     } catch (e) {
       throw classifyGeminiError(e);

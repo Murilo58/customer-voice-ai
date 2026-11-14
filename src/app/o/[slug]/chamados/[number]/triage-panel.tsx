@@ -26,6 +26,7 @@ const UNAVAILABLE_REASON: Record<string, string> = {
   ai_disabled: "A triagem por IA está desativada nesta organização (um Administrador ativa em Configurações → Triagem por IA).",
   quota_exhausted: "A cota mensal de IA da organização foi atingida.",
   global_budget: "O teto mensal de gastos com IA da plataforma foi atingido.",
+  privacy_block: "Esta organização não está autorizada a usar IA até a aprovação DP-01 (somente dados sintéticos).",
 };
 const TRIAGE_TONE: Record<keyof typeof TRIAGE_STATE_LABEL, Tone> = { pending: "neutral", suggested: "ai", reviewed: "ok", unavailable: "warn" };
 

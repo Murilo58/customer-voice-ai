@@ -219,7 +219,8 @@ export default async function SettingsPage({ params, searchParams }: { params: P
         <div className="panel-row"><span>Cota de {ai.period}</span><strong>{ai.quota.used} de {ai.quota.limit} operações</strong></div>
         <div className="panel-row"><span>Chamadas · tokens</span><span>{ai.usage.calls} · {ai.usage.inputTokens + ai.usage.outputTokens + ai.usage.thoughtTokens}</span></div>
         <div className="panel-row"><span>Custo estimado</span><span>US$ {ai.usage.costUsd.toFixed(4)}</span></div>
-        <p className="panel-note">Até a decisão DP-01, a triagem recebe somente dados sintéticos (RIA-17). Provedor atual: {process.env.AI_PROVIDER ?? "simulated"}.</p>
+        {!ai.authorized && <p className="panel-note">Esta organização não está autorizada a usar IA: até a decisão DP-01, só organizações sintéticas liberadas pela plataforma podem ativá-la.</p>}
+        <p className="panel-note">Até a decisão DP-01, a triagem e a sugestão de resposta recebem somente dados sintéticos (RIA-17). Provedor atual: {process.env.AI_PROVIDER ?? "simulated"}.</p>
       </Card>
 
       <div className="settings-grid">

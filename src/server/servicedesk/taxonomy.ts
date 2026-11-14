@@ -4,6 +4,7 @@ import { recordAudit } from "@/server/audit/audit";
 import { getDb, type Db } from "@/server/db/client";
 import { withTenant } from "@/server/db/tenant";
 import { DomainError } from "@/server/errors";
+import { aiAuthorizedForOrg } from "@/server/ai/privacy";
 import { markOnboarding } from "@/server/organizations/onboarding";
 import { requirePermission, type TenantActor } from "@/server/organizations/service";
 
@@ -96,6 +97,11 @@ export async function applySuggestedTaxonomy(actor: TenantActor, db: Db = getDb(
 export async function setAiEnabled(actor: TenantActor, enabled: boolean, db: Db = getDb()) {
   await requirePermission(actor, "settings.manage", db);
   await withTenant(actor, async (tx) => {
+    // DP-01: só organizações autorizadas para testes sintéticos podem ativar a IA (desativar é sempre permitido).
+    if (enabled) {
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: actor.organizationId }, select: { id: true, slug: true } });
+      if (!aiAuthorizedForOrg(org)) throw new DomainError("ai_not_authorized", "");
+    }
     await tx.organization.update({ where: { id: actor.organizationId }, data: { aiEnabled: enabled } });
     await recordAudit(tx, { organizationId: actor.organizationId, actorType: "user", actorId: actor.userId, action: enabled ? "ai.enabled" : "ai.disabled" });
   }, db);
@@ -107,12 +113,13 @@ export async function getAiSettings(actor: TenantActor, db: Db = getDb()) {
   const start = new Date(`${period}-01T00:00:00Z`);
   return withTenant(actor, async (tx) => {
     const [org, quota, usage] = await Promise.all([
-      tx.organization.findUniqueOrThrow({ where: { id: actor.organizationId }, select: { aiEnabled: true } }),
+      tx.organization.findUniqueOrThrow({ where: { id: actor.organizationId }, select: { id: true, slug: true, aiEnabled: true } }),
       tx.aiQuota.findUnique({ where: { organizationId_period: { organizationId: actor.organizationId, period } } }),
       tx.aiUsageEvent.aggregate({ where: { createdAt: { gte: start } }, _count: true, _sum: { inputTokens: true, outputTokens: true, thoughtTokens: true, costUsdMicros: true } }),
     ]);
     return {
       aiEnabled: org.aiEnabled,
+      authorized: aiAuthorizedForOrg(org),
       period,
       quota: { used: quota?.usedOps ?? 0, limit: quota?.limitOps ?? Number(process.env.AI_QUOTA_DEFAULT_OPS ?? 1500) },
       usage: { calls: usage._count, inputTokens: usage._sum.inputTokens ?? 0, outputTokens: usage._sum.outputTokens ?? 0, thoughtTokens: usage._sum.thoughtTokens ?? 0, costUsd: Number(usage._sum.costUsdMicros ?? 0n) / 1e6 },
