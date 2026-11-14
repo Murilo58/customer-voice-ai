@@ -1,7 +1,9 @@
 import { confirmAllAction, reprocessAction, setFieldAction } from "@/app/actions/triage";
+import { Badge, btn, Card, Field } from "@/app/ui/primitives";
 import { PRIORITY_LABEL, SENTIMENT_LABEL, TRIAGE_STATE_LABEL, TYPE_LABEL } from "@/lib/labels";
 import type { ReviewableField } from "@/server/ai/triage";
 import type { getTriageView } from "@/server/servicedesk/triage-review";
+import type { Tone } from "@/app/ui/primitives";
 
 type View = Awaited<ReturnType<typeof getTriageView>>;
 interface Option { id: string; name: string }
@@ -19,6 +21,7 @@ interface Props {
 }
 
 const FIELD_LABEL: Record<ReviewableField, string> = { type: "Tipo", category: "Categoria", reason: "Motivo", priority: "Prioridade" };
+const TRIAGE_TONE: Record<keyof typeof TRIAGE_STATE_LABEL, Tone> = { pending: "neutral", suggested: "ai", reviewed: "ok", unavailable: "warn" };
 
 export function TriagePanel({ slug, ticket, view, categories, reasons, canReprocess }: Props) {
   const pending = new Map((view.run?.reviews ?? []).filter((r) => r.outcome === "pending").map((r) => [r.field, r]));
@@ -31,58 +34,65 @@ export function TriagePanel({ slug, ticket, view, categories, reasons, canReproc
   };
   const current: Record<ReviewableField, string | null> = { type: ticket.type, category: ticket.categoryId, reason: ticket.reasonId, priority: ticket.priority };
   return (
-    <div className="card">
-      <h2>Classificação</h2>
-      <p>
-        Triagem: <strong>{TRIAGE_STATE_LABEL[ticket.triageState]}</strong>
-        {view.run && <span className="muted"> · modelo {view.run.model}, prompt {view.run.promptVersion}</span>}
-      </p>
-      {ticket.triageState === "unavailable" && <p className="muted">Triagem indisponível: classifique manualmente; o atendimento segue normalmente.</p>}
+    <Card title="Classificação">
+      <div className="panel-row">
+        <span>Triagem</span>
+        <Badge tone={TRIAGE_TONE[ticket.triageState]}>{TRIAGE_STATE_LABEL[ticket.triageState]}</Badge>
+      </div>
+      {view.run && <p className="panel-note">Modelo {view.run.model}, prompt {view.run.promptVersion}</p>}
+      {ticket.triageState === "unavailable" && <p className="panel-note">Triagem indisponível: classifique manualmente; o atendimento segue normalmente.</p>}
+      {ticket.sentiment && (
+        <div className="panel-row">
+          <span>Sentimento</span>
+          <span>{SENTIMENT_LABEL[ticket.sentiment as keyof typeof SENTIMENT_LABEL]}</span>
+        </div>
+      )}
       {(ticket.sentiment || ticket.escalationRisk) && (
-        <p>
-          {ticket.sentiment && <>Sentimento: {SENTIMENT_LABEL[ticket.sentiment as keyof typeof SENTIMENT_LABEL]} · </>}
-          Risco de escalada: {ticket.escalationRisk ? <strong>sim</strong> : "não"}
-          {result?.risk_signals?.length ? <> ({result.risk_signals.join(", ")})</> : null}
-        </p>
+        <div className="panel-row">
+          <span>Risco de escalada</span>
+          {ticket.escalationRisk ? <Badge tone="danger">Sim</Badge> : <span>Não</span>}
+        </div>
       )}
+      {ticket.escalationRisk && result?.risk_signals?.length ? <p className="panel-note">Sinais: {result.risk_signals.join(", ")}</p> : null}
       {/* Justificativa da IA exibida como texto puro (CA-08.4) */}
-      {result?.rationale && <p><span className="muted">Justificativa da IA:</span> {result.rationale}</p>}
-      <table>
-        <tbody>
-          {(Object.keys(FIELD_LABEL) as ReviewableField[]).map((f) => (
-            <tr key={f}>
-              <th>
-                {FIELD_LABEL[f]} {pending.has(f) && <span className="badge">sugestão da IA</span>}
-              </th>
-              <td>
-                <form action={setFieldAction.bind(null, slug, ticket.id, ticket.number, f)}>
-                  <select name="value" defaultValue={current[f] ?? ""} aria-label={FIELD_LABEL[f]}>
-                    <option value="" disabled>Sem valor</option>
-                    {options[f].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>{" "}
-                  <button type="submit" className="link">{pending.has(f) ? "confirmar/alterar" : "salvar"}</button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {pending.size > 0 && (
-        <form action={confirmAllAction.bind(null, slug, ticket.id, ticket.number)}>
-          <button type="submit">Confirmar todas as sugestões</button>
-        </form>
-      )}
+      {result?.rationale && <p className="panel-note"><strong>Justificativa da IA:</strong> {result.rationale}</p>}
+
+      <div className="panel-section">
+        {(Object.keys(FIELD_LABEL) as ReviewableField[]).map((f) => (
+          <form key={f} className="triage-field" action={setFieldAction.bind(null, slug, ticket.id, ticket.number, f)}>
+            <label className="triage-field-label" htmlFor={`triage-${f}`}>
+              {FIELD_LABEL[f]} {pending.has(f) && <Badge tone="ai">Sugestão da IA</Badge>}
+            </label>
+            <div className="inline-form">
+              <select id={`triage-${f}`} name="value" defaultValue={current[f] ?? ""}>
+                <option value="" disabled>Sem valor</option>
+                {options[f].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <button type="submit" className={btn(pending.has(f) ? "secondary" : "ghost", "sm")} aria-label={`${pending.has(f) ? "Confirmar ou alterar" : "Salvar"} ${FIELD_LABEL[f].toLowerCase()}`}>
+                {pending.has(f) ? "Confirmar" : "Salvar"}
+              </button>
+            </div>
+          </form>
+        ))}
+        {pending.size > 0 && (
+          <form action={confirmAllAction.bind(null, slug, ticket.id, ticket.number)} className="panel-gap">
+            <button type="submit" className={btn("primary", "sm")}>Confirmar todas as sugestões</button>
+          </form>
+        )}
+      </div>
+
       {canReprocess && (
-        <details style={{ marginTop: 12 }}>
+        <details className="panel-details">
           <summary>Reprocessar triagem</summary>
           <form action={reprocessAction.bind(null, slug, ticket.id, ticket.number)}>
-            <label><input type="checkbox" name="force" value="1" style={{ width: "auto" }} /> Forçar (consome cota e é auditado)</label>
-            <label htmlFor="reason">Justificativa (obrigatória para forçar)</label>
-            <input id="reason" name="reason" maxLength={500} />
-            <button type="submit">Solicitar reprocessamento</button>
+            <label className="check-row"><input type="checkbox" name="force" value="1" /> Forçar (consome cota e é auditado)</label>
+            <Field id="reprocess_reason" label="Justificativa" hint="Obrigatória para forçar.">
+              <input id="reprocess_reason" name="reason" maxLength={500} aria-describedby="reprocess_reason-hint" />
+            </Field>
+            <button type="submit" className={`${btn("secondary", "sm")} mt-2`}>Solicitar reprocessamento</button>
           </form>
         </details>
       )}
-    </div>
+    </Card>
   );
 }

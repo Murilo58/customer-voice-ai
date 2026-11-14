@@ -1,4 +1,5 @@
 import type { Sentiment, TicketChannel, TicketPriority, TicketStatus, TicketType, TriageState } from "@/generated/prisma/client";
+import type { TicketView } from "@/server/servicedesk/tickets";
 
 export const TYPE_LABEL: Record<TicketType, string> = {
   complaint: "Reclamação",
@@ -39,9 +40,10 @@ export const EMAIL_STATUS_LABEL: Record<string, string> = {
   failed: "falha no envio",
 };
 
-export const VIEW_LABEL: Record<string, string> = {
+export const VIEW_LABEL: Record<TicketView, string> = {
   mine: "Meus chamados",
   team_unassigned: "Minha equipe sem responsável",
+  sla_risk: "SLA em risco",
   triage_review: "Aguardando revisão da triagem",
 };
 

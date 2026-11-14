@@ -74,7 +74,18 @@ flowchart TD
 | Taxonomia da organização: IDs e rótulos de categorias, motivos e equipes ativos | Anexos; mensagens em quarentena; dados de outros chamados |
 | Canal (portal, e-mail, manual) | Notas internas |
 
-**Mascaramento:** CPF e CNPJ (com dígito verificador), cartões (Luhn), e-mails e telefones brasileiros são substituídos por marcadores (`[CPF]`, `[EMAIL]`…). As funções são puras, com testes unitários. O texto é limitado a um máximo de caracteres (proposta: 8.000), com truncamento registrado.
+**Mascaramento:** os dados abaixo são substituídos por marcadores (`[CPF]`, `[EMAIL]`, `[CEP]`, `[ENDERECO]`, `[NOME]`…):
+
+- CPF e CNPJ (com dígito verificador);
+- cartões (Luhn);
+- e-mails e telefones brasileiros;
+- CEPs;
+- logradouros com número (tipo do logradouro com inicial maiúscula, nome, número e complemento);
+- o nome do contato do chamado, completo e em cada parte com 3 ou mais letras, sem diferenciar maiúsculas. O nome é carregado só para isso e nunca é enviado.
+
+As funções são puras, com testes unitários. O texto é limitado a um máximo de caracteres (proposta: 8.000), com truncamento registrado.
+
+**Limitações conhecidas:** não são detectados nomes de terceiros (exigiria reconhecimento de entidades), endereços sem número ou escritos todo em minúsculas, nem dados pessoais em formatos incomuns. Por isso continuam valendo a minimização, o nível pago e a restrição a dados sintéticos até DP-01 (RIA-17).
 
 ### 4.2 Prompt (versionado: `triage-vN`)
 

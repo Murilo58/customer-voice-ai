@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { initials } from "@/app/ui/initials";
 import { resolvePortalOrg } from "@/server/portal/service";
+import { PortalNav } from "../portal-nav";
 
 export const metadata: Metadata = { title: "Portal de atendimento", robots: { index: false }, referrer: "no-referrer" };
 
@@ -11,15 +13,15 @@ export default async function PortalLayout({ children, params }: { children: Rea
   const org = await resolvePortalOrg(slug);
   if (!org) notFound();
   return (
-    <>
-      <header className="top">
-        <strong><Link href={`/p/${slug}`}>{org.name}</Link> · Atendimento</strong>
-        <nav aria-label="Portal">
-          <Link href={`/p/${slug}`}>Nova manifestação</Link>
-          <Link href={`/p/${slug}/chamados`}>Meus chamados</Link>
-        </nav>
+    <div className="portal">
+      <header className="portal-top">
+        <Link href={`/p/${slug}`} className="portal-brand">
+          <span className="portal-logo" aria-hidden="true">{initials(org.name)}</span>
+          <span className="portal-brand-text"><strong>{org.name}</strong><span>Central de atendimento</span></span>
+        </Link>
+        <PortalNav slug={slug} />
       </header>
-      <main>{children}</main>
-    </>
+      <main className="portal-main">{children}</main>
+    </div>
   );
 }

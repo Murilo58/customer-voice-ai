@@ -1,4 +1,5 @@
 import { assignTicketAction, assumeTicketAction, changeStatusAction, setTicketTeamAction } from "@/app/actions/servicedesk";
+import { Badge, btn, Card, Field, StatusBadge } from "@/app/ui/primitives";
 import { STATUS_LABEL } from "@/lib/labels";
 import type { TicketStatus } from "@/generated/prisma/client";
 import { allowedTransitions } from "@/server/servicedesk/status";
@@ -27,64 +28,87 @@ const ACTION_LABEL: Partial<Record<TicketStatus, string>> = {
 
 // Ações de status (RN-05), atribuição e equipe (RF-ATD-06).
 export function WorkflowPanel({ slug, ticket, me, canAssign, teamSuggested, teams, assignable }: Props) {
-  const transitions = allowedTransitions(ticket.status);
+  const transitions = allowedTransitions(ticket.status).filter((t) => t !== "cancelled");
+  const canCancel = allowedTransitions(ticket.status).includes("cancelled");
   const active = !["resolved", "closed", "cancelled"].includes(ticket.status);
   const candidates = ticket.team ? assignable.filter((m) => m.teamLinks.some((l) => l.teamId === ticket.team!.id)) : assignable;
+  const statusAction = changeStatusAction.bind(null, slug, ticket.id, ticket.number);
   return (
-    <div className="card">
-      <h2>Atendimento</h2>
-      <p>
-        Status: <strong>{STATUS_LABEL[ticket.status]}</strong>
-        {ticket.status === "cancelled" && ticket.cancelReason && <span className="muted"> · motivo: {ticket.cancelReason}</span>}
-      </p>
-      <div className="row-actions">
-        {transitions.filter((t) => t !== "cancelled").map((t) => (
-          <form key={t} action={changeStatusAction.bind(null, slug, ticket.id, ticket.number)} style={{ display: "inline", marginRight: 8 }}>
-            <input type="hidden" name="status" value={t} />
-            <button type="submit">{ACTION_LABEL[t] ?? STATUS_LABEL[t]}</button>
-          </form>
-        ))}
+    <Card title="Atendimento">
+      <div className="panel-row">
+        <span>Status</span>
+        <StatusBadge status={ticket.status} />
       </div>
-      {transitions.includes("cancelled") && (
-        <details>
+      {ticket.status === "cancelled" && ticket.cancelReason && <p className="panel-note">Motivo do cancelamento: {ticket.cancelReason}</p>}
+      <div className="panel-row">
+        <span>Equipe</span>
+        <span className="tags">
+          {ticket.team ? <>{ticket.team.name}{ticket.team.archivedAt && " (arquivada)"}</> : <span className="muted">Sem equipe</span>}
+          {teamSuggested && <Badge tone="ai">Sugestão da IA</Badge>}
+        </span>
+      </div>
+      <div className="panel-row">
+        <span>Responsável</span>
+        <span>{ticket.assignee?.user.name ?? <span className="muted">Sem responsável</span>}</span>
+      </div>
+
+      {(transitions.length > 0 || (active && ticket.assignee?.id !== me)) && (
+        <div className="panel-section">
+          <div className="btn-row">
+            {active && ticket.assignee?.id !== me && (
+              <form action={assumeTicketAction.bind(null, slug, ticket.id, ticket.number)}>
+                <button type="submit" className={btn("primary", "sm")}>Assumir</button>
+              </form>
+            )}
+            {transitions.map((t) => (
+              <form key={t} action={statusAction}>
+                <input type="hidden" name="status" value={t} />
+                <button type="submit" className={btn(t === "resolved" && ticket.assignee?.id === me ? "primary" : "secondary", "sm")}>{ACTION_LABEL[t] ?? STATUS_LABEL[t]}</button>
+              </form>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {canAssign && active && (
+        <div className="panel-section">
+          <form action={setTicketTeamAction.bind(null, slug, ticket.id, ticket.number)}>
+            <Field id="team_id" label="Equipe">
+              <div className="inline-form">
+                <select id="team_id" name="team_id" defaultValue={ticket.team && !ticket.team.archivedAt ? ticket.team.id : ""}>
+                  <option value="">Sem equipe</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button type="submit" className={btn("secondary", "sm")}>{teamSuggested ? "Confirmar" : "Alterar"}</button>
+              </div>
+            </Field>
+          </form>
+          <form action={assignTicketAction.bind(null, slug, ticket.id, ticket.number)} className="panel-gap">
+            <Field id="membership_id" label="Responsável">
+              <div className="inline-form">
+                <select id="membership_id" name="membership_id" defaultValue={ticket.assignee?.id ?? ""}>
+                  <option value="">Sem responsável</option>
+                  {candidates.map((m) => <option key={m.id} value={m.id}>{m.user.name}</option>)}
+                </select>
+                <button type="submit" className={btn("secondary", "sm")}>Atribuir</button>
+              </div>
+            </Field>
+          </form>
+        </div>
+      )}
+
+      {canCancel && (
+        <details className="panel-details">
           <summary>Cancelar chamado</summary>
-          <form action={changeStatusAction.bind(null, slug, ticket.id, ticket.number)}>
+          <form action={statusAction}>
             <input type="hidden" name="status" value="cancelled" />
-            <label htmlFor="reason">Motivo (obrigatório)</label>
-            <input id="reason" name="reason" required minLength={5} maxLength={500} />
-            <button type="submit">Confirmar cancelamento</button>
+            <Field id="reason" label="Motivo (obrigatório)" hint="Mínimo de 5 caracteres. Fica registrado na linha do tempo.">
+              <input id="reason" name="reason" required minLength={5} maxLength={500} aria-describedby="reason-hint" />
+            </Field>
+            <button type="submit" className={`${btn("danger", "sm")} mt-2`}>Confirmar cancelamento</button>
           </form>
         </details>
       )}
-      <p>
-        Equipe: {ticket.team ? <>{ticket.team.name}{ticket.team.archivedAt && " (arquivada)"}</> : "—"} {teamSuggested && <span className="badge">sugestão da IA</span>}
-        {" · "}Responsável: {ticket.assignee?.user.name ?? "—"}
-      </p>
-      {active && ticket.assignee?.id !== me && (
-        <form action={assumeTicketAction.bind(null, slug, ticket.id, ticket.number)} style={{ display: "inline", marginRight: 8 }}>
-          <button type="submit">Assumir</button>
-        </form>
-      )}
-      {canAssign && active && (
-        <>
-          <form action={setTicketTeamAction.bind(null, slug, ticket.id, ticket.number)}>
-            <label htmlFor="team_id">Equipe</label>
-            <select id="team_id" name="team_id" defaultValue={ticket.team && !ticket.team.archivedAt ? ticket.team.id : ""}>
-              <option value="">Sem equipe</option>
-              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>{" "}
-            <button type="submit">{teamSuggested ? "Confirmar equipe" : "Alterar equipe"}</button>
-          </form>
-          <form action={assignTicketAction.bind(null, slug, ticket.id, ticket.number)}>
-            <label htmlFor="membership_id">Responsável</label>
-            <select id="membership_id" name="membership_id" defaultValue={ticket.assignee?.id ?? ""}>
-              <option value="">Sem responsável</option>
-              {candidates.map((m) => <option key={m.id} value={m.id}>{m.user.name}</option>)}
-            </select>{" "}
-            <button type="submit">Atribuir</button>
-          </form>
-        </>
-      )}
-    </div>
+    </Card>
   );
 }

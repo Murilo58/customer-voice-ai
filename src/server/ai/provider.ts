@@ -1,8 +1,9 @@
 import type { Taxonomy, TriageInput } from "./triage-schema";
+import { GeminiTriageProvider } from "./gemini";
 
 // Provedor de triagem desacoplado (RIA-03: modelo é configuração).
-// O cliente Gemini real só será implementado após a PoC 2 (ADR-005). Até lá, o provedor
-// "simulated" responde de forma determinística, sem rede e sem custo.
+// Padrão: "simulated" (determinístico, sem rede e sem custo). O Gemini (gemini.ts) só é usado com
+// AI_PROVIDER=gemini, GEMINI_API_KEY e AI_TRIAGE_MODEL definidos explicitamente (ADR-005).
 
 export interface ProviderUsage {
   inputTokens: number;
@@ -73,12 +74,24 @@ export class SimulatedTriageProvider implements TriageProvider {
   }
 }
 
-export function getTriageProvider(): TriageProvider {
-  const provider = process.env.AI_PROVIDER ?? "simulated";
+/** Provedor que falha de forma permanente: a triagem segue o modo degradado (RF-TRI-07) sem chamar a rede. */
+const unavailableProvider = (model: string, code: string): TriageProvider => ({
+  model,
+  generate: async () => { throw new ProviderError("permanent", code); },
+});
+
+export function getTriageProvider(env: Record<string, string | undefined> = process.env): TriageProvider {
+  const provider = env.AI_PROVIDER || "simulated";
   if (provider === "simulated") return new SimulatedTriageProvider();
   if (provider === "gemini") {
-    // Bloqueado até a PoC 2 (viabilidade, modelo e custo). Ver ADR-005 e POC_RESULTS seção 3.
-    return { model: process.env.AI_TRIAGE_MODEL ?? "gemini", generate: async () => { throw new ProviderError("permanent", "gemini_pending_poc"); } };
+    // Sem modelo padrão: a escolha é explícita, conforme o benchmark (RIA-13). Só modelos com preço conhecido,
+    // para que custo, cota e teto global sejam calculados corretamente (RF-CON-01, RF-CON-04).
+    const model = env.AI_TRIAGE_MODEL?.trim();
+    const apiKey = env.GEMINI_API_KEY?.trim();
+    if (!model || !apiKey) return unavailableProvider(model || "gemini", "gemini_not_configured");
+    if (!(model in PRICES) || model === "simulated-v1") return unavailableProvider(model, "gemini_model_not_priced");
+    const timeoutMs = Number(env.AI_TIMEOUT_MS);
+    return new GeminiTriageProvider({ model, apiKey, ...(Number.isFinite(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {}) });
   }
   throw new Error(`AI_PROVIDER desconhecido: ${provider}`);
 }

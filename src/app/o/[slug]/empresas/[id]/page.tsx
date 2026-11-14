@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EmptyState, PageHeader, TableCard } from "@/app/ui/primitives";
 import { requireServiceActor } from "@/server/identity/session";
 import { getCompany } from "@/server/servicedesk/contacts";
 
@@ -11,17 +12,26 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   if (!company) notFound();
   return (
     <>
-      <p><Link href={`/o/${slug}/empresas`}>← Empresas-cliente</Link></p>
-      <h1>{company.name}</h1>
-      {company.emailDomain && <p className="muted">Domínio: {company.emailDomain}</p>}
-      <div className="card">
-        <h2>Contatos</h2>
-        {company.contacts.length === 0 ? <p className="muted">Nenhum contato vinculado.</p> : (
-          <ul>
-            {company.contacts.map((c) => <li key={c.id}><Link href={`/o/${slug}/contatos/${c.id}`}>{c.name}</Link> <span className="muted">({c.email})</span></li>)}
-          </ul>
-        )}
-      </div>
+      <PageHeader
+        back={{ href: `/o/${slug}/empresas`, label: "Empresas-cliente" }}
+        title={company.name}
+        meta={company.emailDomain ? `Domínio: ${company.emailDomain}` : undefined}
+      />
+      <TableCard
+        title={`Contatos (${company.contacts.length})`}
+        label="Contatos da empresa (rolável)"
+        empty={company.contacts.length === 0 ? <EmptyState icon="users" title="Nenhum contato vinculado" /> : undefined}
+      >
+        <thead><tr><th scope="col">Nome</th><th scope="col">E-mail</th></tr></thead>
+        <tbody>
+          {company.contacts.map((c) => (
+            <tr key={c.id}>
+              <td><Link href={`/o/${slug}/contatos/${c.id}`} className="t-strong">{c.name}</Link></td>
+              <td>{c.email}</td>
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
     </>
   );
 }

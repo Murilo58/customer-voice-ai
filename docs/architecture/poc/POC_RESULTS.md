@@ -13,7 +13,7 @@
 | --- | --- | --- |
 | PoC 1 — RLS: parte local (desenho SQL) | **Executada: 13/13 testes aprovados** | — |
 | PoC 1 — RLS: parte Neon (pooler + Prisma 7) | **Aprovada com ressalvas (10/11/2026).** Isolamento: aprovado nos cenários testados. Desempenho N7: **atendido na Vercel (12/11/2026), p95 13,3–14,5 ms**. Homologação integrada: pendente | Ver seção do N7 abaixo |
-| PoC 2 — Teste comparativo Gemini | **Executada (11/11/2026): 80/80 chamadas, 100% de saídas válidas.** Recomendado: `gemini-3.1-flash-lite` (indicativo) | Seleção definitiva depende do golden set de 200 itens (RIA-13) e da decisão do responsável |
+| PoC 2 — Teste comparativo Gemini | **Concluída (13/11/2026): golden set de 200 itens (RIA-13), 100% de saídas válidas.** Modelo aprovado pelo responsável: `gemini-3.1-flash-lite`, com o prompt calibrado `triage-v5` (seção 3.1) | Ativação no app depende do teste de fumaça autorizado |
 | PoC 3 — Recursos do Resend | **Documental concluída; prática aprovada (11–12/11/2026):** recebimento com SPF/DKIM/DMARC, cabeçalhos, MIME bruto, anexos e subendereçamento `r+token@`; envio com cabeçalhos customizados e idempotência | `Message-ID` customizado **não** é preservado na entrega (R2a'): ajuste mínimo da ADR-007 aprovado em 12/11/2026 (seção 4.2) |
 
 Credenciais nunca são solicitadas no chat. O responsável as configura localmente (seção 5); a verificação confirma apenas presença e formato, sem exibir valores.
@@ -116,7 +116,68 @@ O script da PoC (não é código da aplicação) foi ajustado para diagnóstico,
 
 ## 3. PoC 2 — Teste comparativo Gemini (executada)
 
-### Resultado (11/11/2026)
+### 3.1 Seleção definitiva e calibração da urgência (13/11/2026)
+
+**Ambiente:** chave de projeto com faturamento ativo (nível pago: o conteúdo não é usado para melhorar produtos do Google), em `poc/gemini-benchmark/.env` (no `.gitignore`). Somente dados sintéticos. Nenhuma nova tentativa e nenhuma recusa por limite (429) em todas as rodadas. **Gasto total estimado pela tabela de preços: US$ 0,26** (conferir no painel de faturamento do Google).
+
+**Conjunto:** `golden-set-sintetico-200.json`: os 40 itens originais mais 160 novos. Inclui:
+
+- sarcasmo, texto informal, idioma misto, vários assuntos, textos curtos e longos;
+- 11 tentativas de injeção de instruções;
+- 14 casos com risco de escalada;
+- dados pessoais fictícios.
+
+**Seleção do modelo (200 itens × 2 modelos, prompt `triage-v2`).** Evidência: `resultado-benchmark-200-2026-11-13.json`.
+
+| Métrica | `gemini-3.1-flash-lite` | `gemini-3.5-flash-lite` |
+| --- | --- | --- |
+| Tipo / categoria | **95,0% / 97,0%** | 94,0% / 94,5% |
+| Urgência (rótulos originais) | 81,0% | 83,5% |
+| Risco de escalada | 14/14, nenhum falso positivo | 14/14, nenhum falso positivo |
+| Injeções: tipo correto | 11/11 | 11/11 |
+| Latência p50 / p95 | 1.149 / 1.346 ms | 969 / 1.358 ms |
+| Custo por 1.000 chamados | **US$ 0,23** | US$ 0,34 |
+
+**Decisão do responsável (13/11/2026):** `gemini-3.1-flash-lite`, com calibração da urgência.
+
+**Calibração da urgência.**
+
+1. **Rubrica explícita** registrada no golden set (`rubricaUrgencia`):
+   - alta: prejuízo ou risco acontecendo agora;
+   - baixa: dúvidas, sugestões, elogios e pedidos administrativos simples;
+   - média: todos os demais casos.
+2. **12 rótulos revisados** porque contrariavam a rubrica (`revisoesUrgencia`). Exemplo: "atualizar cadastro" estava como baixa e "alterar e-mail" como média.
+3. **Holdout de 50 itens** sorteados entre os não examinados (`holdout`).
+   - Limitação: todos os itens "alta", de risco e "solicitação" já tinham sido examinados. Por isso o holdout só mede média/baixa, tipo e categoria.
+   - Ele deu 100% em todas as versões, então não distingue os prompts. Medir sobreajuste exigirá um conjunto novo de casos difíceis, escrito à parte.
+
+| Prompt (3.1-flash-lite, rótulos revisados) | Tipo | Categoria | Urgência | Risco | Custo por 1.000 | Resultado |
+| --- | --- | --- | --- | --- | --- | --- |
+| `triage-v2` (original) | 95,0% | 97,0% | 85,0% | 14/14, 0 FP | US$ 0,23 | Base |
+| `triage-v3` (rubrica longa) | 95,0% | 90,0% | 93,5% | 14/14, 1 FP | US$ 0,30 | Recusado: categoria caiu (exemplos da rubrica confundiram a categoria) |
+| `triage-v4` (rubrica curta + regra de categoria + ressalva na escalada) | 96,0% | 97,5% | 91,0% | **12/14**, 0 FP | US$ 0,27 | Recusado: deixou de marcar 2 casos de segurança física |
+| **`triage-v5`** (v4 com a regra de escalada original) | **96,5%** | **97,5%** | **91,0%** | **14/14, 0 FP** | US$ 0,27 | **Aprovado** |
+
+**Critério de aceite da v5:** risco 14/14, categoria ≥ 97% e urgência ≥ 90%. Todos foram atendidos.
+
+Nenhum item "alta" foi classificado abaixo de média. Os erros de urgência restantes são média↔alta (9) e média↔baixa (9). Injeções: 11/11. Latência p95: 1.630 ms. Média de 370 tokens de entrada e 100 de saída, sem tokens de raciocínio. Evidência: `resultado-benchmark-200-prompt-v5-2026-11-13.json`.
+
+### 3.2 Teste de fumaça no app (13/11/2026)
+
+**Ambiente:** banco de desenvolvimento `cva_dev`, org sintética `demo-mwbfailf`, provedor `gemini`, modelo `gemini-3.1-flash-lite`, prompt `triage-v5`. E-mail em modo console. Durante o teste, teto global de US$ 0,50 e cota temporária. Ao final, as configurações foram restauradas com as funções auditadas do backoffice.
+
+**Resultado:**
+
+- 12 chamados sintéticos, 12 chamadas bem-sucedidas: nenhuma falha, nenhuma nova tentativa, nenhum 429.
+- O schema de saída do app foi aceito pela API.
+- Tipo e risco corretos em 12/12; categoria em 11/12. A divergência foi uma sugestão sobre manual classificada como "Outros", e não "Produto com defeito".
+- Mascaramento conferido no conteúdo enviado: nenhum CPF, CNPJ, e-mail, telefone, endereço ou nome do contato em claro.
+- Média de 793 tokens de entrada e 212 de saída, sem tokens de raciocínio. Custo de **US$ 0,0062** no total, ou cerca de US$ 0,52 por 1.000 chamados. É cerca de 2× a PoC, porque o prompt do app inclui IDs e schema e a saída tem confiança e justificativa.
+- Latência p50 de 1,7 s; máxima de 2,6 s.
+
+**Observação:** na primeira rodada, a cota temporária de 20 não considerou as 15 operações já usadas no mês. O controle bloqueou 7 chamados sem custo, como deveria. Eles foram reprocessados com a cota de 27, sem criar chamados novos.
+
+### Resultado indicativo (11/11/2026)
 
 **Ambiente:** chave do nível gratuito do Google AI Studio, configurada em `poc/gemini-benchmark/.env` (no `.gitignore`), execução local. 40 itens sintéticos × 2 modelos = 80 chamadas, nenhuma nova tentativa, nenhuma recusa por limite (429). Custo real: US$ 0 (nível gratuito). Custo equivalente no nível pago: US$ 0,021. **Evidência:** `poc/gemini-benchmark/resultado-benchmark-2026-11-11.json`.
 
