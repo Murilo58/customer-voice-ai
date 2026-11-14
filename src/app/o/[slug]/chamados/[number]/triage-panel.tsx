@@ -22,6 +22,11 @@ interface Props {
 }
 
 const FIELD_LABEL: Record<ReviewableField, string> = { type: "Tipo", category: "Categoria", reason: "Motivo", priority: "Prioridade" };
+const UNAVAILABLE_REASON: Record<string, string> = {
+  ai_disabled: "A triagem por IA está desativada nesta organização (um Administrador ativa em Configurações → Triagem por IA).",
+  quota_exhausted: "A cota mensal de IA da organização foi atingida.",
+  global_budget: "O teto mensal de gastos com IA da plataforma foi atingido.",
+};
 const TRIAGE_TONE: Record<keyof typeof TRIAGE_STATE_LABEL, Tone> = { pending: "neutral", suggested: "ai", reviewed: "ok", unavailable: "warn" };
 
 export function TriagePanel({ slug, ticket, view, categories, reasons, canReprocess }: Props) {
@@ -42,7 +47,12 @@ export function TriagePanel({ slug, ticket, view, categories, reasons, canReproc
       </div>
       {view.run && <p className="panel-note">Modelo {view.run.model}, prompt {view.run.promptVersion}</p>}
       {ticket.triageState === "pending" && <TriageRefresh />}
-      {ticket.triageState === "unavailable" && <p className="panel-note">Triagem indisponível: classifique manualmente; o atendimento segue normalmente.</p>}
+      {ticket.triageState === "unavailable" && (
+        <p className="panel-note">
+          {UNAVAILABLE_REASON[view.unavailableReason ?? ""] ?? "A IA não conseguiu classificar este chamado."} Classifique manualmente; o atendimento segue normalmente.
+          {view.run && " Abaixo, a última classificação feita pela IA."}
+        </p>
+      )}
       {result?.urgency && (
         <div className="panel-row">
           <span>Urgência</span>
