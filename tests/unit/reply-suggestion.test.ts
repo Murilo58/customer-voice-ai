@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aiAuthorizedForOrg } from "@/server/ai/privacy";
-import { buildReplyContent, parseReplyOutput, REPLY_MAX_CHARS, REPLY_MAX_CONTEXT_CHARS, REPLY_MAX_MESSAGES, type ReplyContext } from "@/server/ai/reply-suggestion";
+import { buildReplyContent, parseReplyOutput, REPLY_MAX_CHARS, REPLY_MAX_CONTEXT_CHARS, REPLY_MAX_MESSAGES, REPLY_PROMPT_VERSION, REPLY_SYSTEM_INSTRUCTION, type ReplyContext } from "@/server/ai/reply-suggestion";
 import { ProviderError } from "@/server/ai/provider";
 
 const base: ReplyContext = {
@@ -46,6 +46,18 @@ describe("contexto da sugestão de resposta", () => {
     expect(r.content.length).toBeLessThan(REPLY_MAX_CONTEXT_CHARS + 500);
     expect(r.content).toContain("msg-29");
     expect(r.content).not.toContain(`msg-${30 - REPLY_MAX_MESSAGES - 1} `);
+  });
+});
+
+describe("prompt da sugestão", () => {
+  it("proíbe afirmar ações da equipe não registradas no chamado (reply-v2)", () => {
+    expect(REPLY_PROMPT_VERSION).toBe("reply-v2");
+    expect(REPLY_SYSTEM_INSTRUCTION).toMatch(/Não afirme ações da equipe que não constem do histórico/);
+    expect(REPLY_SYSTEM_INSTRUCTION).toContain('"encaminhamos"');
+  });
+  it("proíbe citar departamentos ou responsáveis internos não identificados no chamado", () => {
+    expect(REPLY_SYSTEM_INSTRUCTION).toMatch(/Não mencione departamentos, equipes, setores, responsáveis ou áreas internas/);
+    expect(REPLY_SYSTEM_INSTRUCTION).toContain('"equipe financeira"');
   });
 });
 

@@ -13,7 +13,7 @@ A IA é usada apenas na **triagem** (RF-TRI-01 a 09), como **uma chamada estrutu
 
 Claude Code é ferramenta de desenvolvimento e não faz parte da aplicação.
 
-### 1.1 Sugestão de resposta (evolução pós-MVP, prompt `reply-v1`)
+### 1.1 Sugestão de resposta (evolução pós-MVP, prompt `reply-v2`)
 
 No detalhe do chamado, o atendente pode pedir uma **sugestão de resposta pública** (`src/server/ai/reply-suggestion.ts`). O texto volta para o editor; o envio continua sendo o fluxo normal (`addPublicReply`), sempre por ação humana. Nada é gravado como mensagem.
 
