@@ -13,12 +13,13 @@ A IA é usada apenas na **triagem** (RF-TRI-01 a 09), como **uma chamada estrutu
 
 Claude Code é ferramenta de desenvolvimento e não faz parte da aplicação.
 
-### 1.1 Sugestão de resposta (evolução pós-MVP, prompt `reply-v2`)
+### 1.1 Sugestão de resposta (evolução pós-MVP, prompt `reply-v3`)
 
 No detalhe do chamado, o atendente pode pedir uma **sugestão de resposta pública** (`src/server/ai/reply-suggestion.ts`). O texto volta para o editor; o envio continua sendo o fluxo normal (`addPublicReply`), sempre por ação humana. Nada é gravado como mensagem.
 
 - **Acesso:** permissão `service.access`, chamado em status que aceita resposta pública, IA ativada e organização autorizada (DP-01). Só o id do chamado vem do navegador; o contexto é lido do banco no escopo da organização (RLS).
 - **Contexto (até 8.000 caracteres):** assunto, descrição, tipo, categoria, sentimento, urgência da última triagem e até 10 mensagens públicas recentes (sem notas internas), mascarados como na triagem (4.1) e delimitados por `<chamado>` como dado não confiável.
+- **Prompt `reply-v3`:** não afirma ações da equipe (feitas, em andamento, prometidas ou de acompanhamento) nem cita departamentos ou responsáveis que não constem do histórico; usa apenas fatos já informados pelo atendente.
 - **Controles:** mesma cota mensal (1 operação por pedido) e teto global; 1 nova tentativa só para erro transitório; trava de 10 s por chamado contra cliques repetidos e pedidos simultâneos (linha do chamado bloqueada); consumo em `ai_usage_events` (`feature = reply_suggestion`); auditoria `ai.reply_suggestion_requested`, `ai.reply_suggested` ou `ai.reply_suggestion_failed`, sem conteúdo.
 
 ### 1.2 Bloqueio técnico DP-01
