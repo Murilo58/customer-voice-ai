@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/server/db/client";
 import { ForbiddenError } from "@/server/errors";
@@ -13,7 +13,13 @@ export interface SessionUser {
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  // Cookies atuais da requisição: dentro de uma server action que trocou a sessão (ex.: ativação do 2FA), a
+  // renderização seguinte precisa enxergar o cookie novo, e não o do cabeçalho original (sessão já excluída).
+  const h = new Headers(await headers());
+  const cookie = (await cookies()).toString();
+  if (cookie) h.set("cookie", cookie);
+  else h.delete("cookie");
+  const session = await getAuth().api.getSession({ headers: h });
   if (!session) return null;
   const u = session.user as typeof session.user & { twoFactorEnabled?: boolean | null };
   return { id: u.id, name: u.name, email: u.email, twoFactorEnabled: !!u.twoFactorEnabled };

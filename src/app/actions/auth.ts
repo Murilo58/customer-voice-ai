@@ -8,6 +8,7 @@ import { recordAuthEvent } from "@/server/audit/audit";
 import { getDb } from "@/server/db/client";
 import { getAuth } from "@/server/identity/auth";
 import { requireUser } from "@/server/identity/session";
+import { totpSetupView } from "@/server/identity/totp-setup";
 import { DomainError } from "@/server/errors";
 import { backWithError, field } from "./helpers";
 
@@ -65,37 +66,59 @@ export async function signOutEverywhereAction(): Promise<void> {
   redirect("/entrar");
 }
 
+/** Etapa "ler o QR Code": a configuração fica pendente (não é 2FA ativo) até a confirmação do código. */
 export interface TwoFactorSetupState {
-  totpURI?: string;
+  qrSvg?: string;
+  manualKey?: string;
+  error?: string;
+}
+
+/**
+ * Inicia (ou reinicia) a configuração pelo Better Auth. Reiniciar substitui a chave e os códigos de recuperação
+ * pendentes. Devolve só o QR Code e a chave manual pelo estado do formulário: nada vai para a URL nem para logs, e
+ * os códigos de recuperação só são entregues depois da confirmação (confirmTwoFactorAction).
+ */
+export async function enableTwoFactorAction(_prev: TwoFactorSetupState, form: FormData): Promise<TwoFactorSetupState> {
+  const user = await requireUser();
+  let totpURI: string;
+  try {
+    const r = await getAuth().api.enableTwoFactor({ body: { password: field(form, "password") }, headers: await headers() });
+    if (r.method !== "totp") return { error: "unexpected" };
+    totpURI = r.totpURI;
+  } catch (e) {
+    if (e instanceof APIError) return { error: "invalid_credentials" };
+    console.error("[action] enableTwoFactor falhou");
+    return { error: "unexpected" };
+  }
+  await recordAuthEvent(getDb(), { action: "auth.mfa_setup_started", actorId: user.id });
+  return totpSetupView(totpURI);
+}
+
+export interface TwoFactorConfirmState {
   backupCodes?: string[];
   error?: string;
 }
 
-/** Devolve o URI TOTP pelo estado do formulário: o segredo nunca vai para a URL nem para logs. */
-export async function enableTwoFactorAction(_prev: TwoFactorSetupState, form: FormData): Promise<TwoFactorSetupState> {
+/** Confirma o código do aplicativo (ativa o 2FA no Better Auth) e só então entrega os códigos de recuperação. */
+export async function confirmTwoFactorAction(_prev: TwoFactorConfirmState, form: FormData): Promise<TwoFactorConfirmState> {
   const user = await requireUser();
+  const code = field(form, "code").replace(/\s/g, "");
+  if (!/^\d{6}$/.test(code)) return { error: "invalid_code_format" };
   try {
-    const r = await getAuth().api.enableTwoFactor({ body: { password: field(form, "password") }, headers: await headers() });
-    if (r.method !== "totp") return { error: "unexpected" };
-    await recordAuthEvent(getDb(), { action: "auth.mfa_setup_started", actorId: user.id });
-    return { totpURI: r.totpURI, backupCodes: r.backupCodes };
+    await getAuth().api.verifyTOTP({ body: { code }, headers: await headers() });
   } catch (e) {
-    if (e instanceof APIError) return { error: "invalid_credentials" };
-    console.error("[action] enableTwoFactor", e);
+    if (e instanceof APIError) return { error: apiErrorCode(e) === "TOTP_NOT_ENABLED" ? "mfa_setup_expired" : "invalid_code_setup" };
+    console.error("[action] confirmTwoFactor falhou");
     return { error: "unexpected" };
   }
+  await recordAuthEvent(getDb(), { action: "auth.mfa_enabled", actorId: user.id });
+  const r = await getAuth().api.viewBackupCodes({ body: { userId: user.id } });
+  return { backupCodes: r.backupCodes };
 }
 
-export async function confirmTwoFactorAction(form: FormData): Promise<void> {
-  const user = await requireUser();
-  try {
-    await getAuth().api.verifyTOTP({ body: { code: field(form, "code").replace(/\s/g, "") }, headers: await headers() });
-  } catch (e) {
-    if (e instanceof APIError) backWithError("/conta/seguranca", new DomainError("invalid_code", ""));
-    backWithError("/conta/seguranca", e);
-  }
-  await recordAuthEvent(getDb(), { action: "auth.mfa_enabled", actorId: user.id });
-  redirect("/conta/seguranca?ok=1");
+function apiErrorCode(e: APIError): string {
+  const body = (e as { body?: { code?: unknown } }).body;
+  return typeof body?.code === "string" ? body.code : "";
 }
 
 // ---------- Recuperação de acesso (RF-ORG-03) ----------
