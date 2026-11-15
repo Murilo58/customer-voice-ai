@@ -81,9 +81,17 @@ export function setInboundProviderForTests(p: InboundProvider | null) {
   override = p;
 }
 
+/**
+ * Chave de leitura do recebimento (GET /emails/receiving). Separada da chave de envio para que esta possa ser
+ * "Sending access" no Resend; sem RESEND_INBOUND_API_KEY, usa RESEND_API_KEY (configuração anterior).
+ */
+export function inboundApiKey(): string | undefined {
+  return process.env.RESEND_INBOUND_API_KEY || process.env.RESEND_API_KEY || undefined;
+}
+
 export function getInboundProvider(): InboundProvider {
   if (override) return override;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("Recebimento de e-mail não configurado (RESEND_API_KEY).");
+  const key = inboundApiKey();
+  if (!key) throw new Error("Recebimento de e-mail não configurado (RESEND_INBOUND_API_KEY).");
   return new ResendInboundProvider(key);
 }
