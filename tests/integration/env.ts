@@ -16,3 +16,4 @@ process.env.AI_SYNTHETIC_ORGS = "*";
 // I-4: domínio de recebimento sintético; o provedor de recebimento, o armazenamento e o anti-bot são injetados nos testes.
 process.env.INBOUND_EMAIL_DOMAIN = "in.exemplo.test";
 delete process.env.RESEND_API_KEY;
+delete process.env.RESEND_INBOUND_API_KEY;

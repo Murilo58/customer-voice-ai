@@ -20,7 +20,7 @@
 | `TURNSTILE_*` | Chaves de teste da Cloudflare (sempre aprovam) |
 | `STORAGE_PROVIDER` | `vercel-blob`: store privado `cva-test-anexos` em `gru1`, `BLOB_READ_WRITE_TOKEN` criado pela Vercel |
 | `INBOUND_EMAIL_DOMAIN` | `lexiamoru.resend.app` |
-| `RESEND_WEBHOOK_SECRET`, `RESEND_API_KEY` | Tipo sensível (não legíveis no painel). Segredo de assinatura inserido pelo responsável em `.env.deploy.local`; chave da PoC 3 (consulta do e-mail recebido). Envio de e-mails continua `console` |
+| `RESEND_WEBHOOK_SECRET`, `RESEND_API_KEY`, `RESEND_INBOUND_API_KEY` | Tipo sensível (não legíveis no painel). Segredo de assinatura inserido pelo responsável em `.env.deploy.local`. `RESEND_API_KEY`: envio (pode ser *Sending access*). `RESEND_INBOUND_API_KEY`: leitura do e-mail recebido e reconciliação (exige *Full access* no Resend); se ausente, a leitura usa `RESEND_API_KEY` |
 
 `vercel.json`: build com `prisma generate && next build`; cron diário (limite do Hobby). `.vercelignore` impede o envio de `.env*`, PoCs e artefatos locais pela CLI. O repositório GitHub foi conectado ao projeto pela CLI: cada push em `main` gera deploy de produção.
 

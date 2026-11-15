@@ -13,7 +13,7 @@ import {
   authFailed, classifyRecipients, contentHash, extractReply, htmlToText, isAutomated, MAX_INBOUND_TEXT,
   parseAddress, sanitizeEmailHtml, type InboundEmail,
 } from "./parse";
-import { getInboundProvider, type InboundProvider } from "./provider";
+import { getInboundProvider, inboundApiKey, type InboundProvider } from "./provider";
 
 // Recebimento de e-mail (ADR-007; RF-EML-02 a 06, RF-EML-08; RN-15 a RN-19).
 // Webhook/reconciliação → inbound_receipts (plataforma, só o id do provedor) → job inbound.process:
@@ -232,7 +232,7 @@ export function reconcileJobHandler(deps: { provider?: InboundProvider; db?: Db 
 
 /** Agenda a reconciliação a cada 10 minutos (chamado pelo varredor), se o recebimento estiver configurado. */
 export async function scheduleReconcile(db: Db = getDb()) {
-  if (!inboundDomain() || !process.env.RESEND_API_KEY) return null;
+  if (!inboundDomain() || !inboundApiKey()) return null;
   const slot = Math.floor(Date.now() / 600_000);
   return db.$transaction((tx) => enqueueJob(tx as Tx, { type: RECONCILE_JOB, organizationId: null, payload: {}, idempotencyKey: `reconcile:${slot}`, maxAttempts: 1 }));
 }
