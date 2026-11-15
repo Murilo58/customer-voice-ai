@@ -108,7 +108,7 @@ export default function LandingPage() {
         <section className="mk-hero" aria-labelledby="hero-title">
           <div className="mk-container mk-hero-grid">
             <div>
-              <p className="pill"><span className="pill-dot" aria-hidden="true" />Beta fechado · acesso por convite</p>
+              <p className="pill"><span className="pill-dot" aria-hidden="true" />VoxDesk AI v1.0</p>
               <h1 id="hero-title">Transforme cada interação com o cliente em resolução, aprendizado e melhoria contínua</h1>
               <p className="lead">
                 Central de atendimento para pequenas e médias empresas, com triagem por IA revisada pela sua equipe, SLA, portal do
@@ -253,8 +253,8 @@ export default function LandingPage() {
         <section className="mk-cta" aria-labelledby="cta-title">
           <div className="mk-container mk-cta-inner">
             <div>
-              <h2 id="cta-title">Acesso por convite</h2>
-              <p>O VoxDesk AI está em beta fechado. Se você recebeu um convite, entre com o seu e-mail.</p>
+              <h2 id="cta-title">Conheça o VoxDesk AI</h2>
+              <p>Uma plataforma inteligente para centralizar atendimentos, organizar chamados e melhorar a experiência dos seus clientes.</p>
             </div>
             <Cta />
           </div>
@@ -264,7 +264,7 @@ export default function LandingPage() {
       <footer className="mk-footer">
         <div className="mk-container mk-footer-inner">
           <Brand />
-          <p>Beta fechado · acesso por convite</p>
+          <p>VoxDesk AI · Uma solução Orizon</p>
           <Link href="/entrar">Entrar</Link>
         </div>
       </footer>
