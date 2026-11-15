@@ -342,6 +342,22 @@ a.kpi:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); 
 .attention-warn .attention-dot { background: var(--warn); }
 .all-clear { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: var(--space-3); border-radius: var(--radius-sm); background: var(--ok-soft); color: var(--tag-ok); font-weight: 600; }
 .all-clear svg { width: 18px; height: 18px; }
+/* Ativação do 2FA (conta/seguranca) */
+.tfa-steps { display: flex; flex-direction: column; gap: var(--space-3); }
+.tfa-title { margin: var(--space-2) 0 0; font-size: var(--text-base); }
+.tfa-qr { width: 200px; height: 200px; padding: var(--space-2); background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.tfa-qr svg { display: block; width: 100%; height: 100%; }
+.tfa-link { align-self: flex-start; padding-left: 0; text-decoration: underline; }
+.tfa-manual { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.tfa-manual p { margin-top: 0; }
+.tfa-key-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.tfa-key { flex: 1 1 220px; padding: 8px 10px; font-size: var(--text-sm); letter-spacing: 0.08em; word-break: break-word; }
+.tfa-code { max-width: 180px; font-size: var(--text-lg); letter-spacing: 0.3em; font-variant-numeric: tabular-nums; }
+.tfa-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.tfa-codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); list-style: none; margin: 0; padding: var(--space-3); border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
+.tfa-codes code { font-size: var(--text-sm); letter-spacing: 0.05em; }
+.tfa-check { display: flex; align-items: center; gap: var(--space-2); font-weight: 500; }
+.tfa-check input { width: auto; }
 
 .onb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); }
 .onb-head h2 { margin-bottom: var(--space-1); }

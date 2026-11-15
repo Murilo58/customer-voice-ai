@@ -2,7 +2,6 @@ import { signOutEverywhereAction } from "@/app/actions/auth";
 import { ErrorAlert, param, Success, type SearchParams } from "@/app/components";
 import { requireUser } from "@/server/identity/session";
 import { AccountHeader } from "@/app/ui/account-header";
-import { Icon } from "@/app/ui/icons";
 import { Badge, btn, Card, PageHeader } from "@/app/ui/primitives";
 import { TwoFactorSetup } from "./two-factor-setup";
 
@@ -18,16 +17,13 @@ export default async function SecurityPage({ searchParams }: { searchParams: Sea
         <div className="account-container account-narrow">
           <PageHeader back={{ href: "/app", label: "Organizações" }} title="Segurança da conta" meta={user.email} />
           <ErrorAlert code={param(sp, "motivo") ?? param(sp, "erro")} />
-          <Success show={param(sp, "ok") === "1"}>Autenticação em dois fatores ativada.</Success>
-          <Card title="Autenticação em dois fatores" actions={user.twoFactorEnabled ? <Badge tone="ok">Ativada</Badge> : <Badge tone="warn">Desativada</Badge>}>
-            {user.twoFactorEnabled ? (
-              <p className="all-clear"><Icon name="check" />Sua conta exige um código do aplicativo autenticador ao entrar.</p>
-            ) : (
-              <>
-                <p className="muted">Proteja a conta com um código do aplicativo autenticador além da senha. É obrigatório para o acesso de superadmin.</p>
-                <TwoFactorSetup />
-              </>
+          <Success show={param(sp, "ok") === "1"}>Autenticação em duas etapas ativada.</Success>
+          <Card title="Autenticação em duas etapas" actions={user.twoFactorEnabled ? <Badge tone="ok">Ativada</Badge> : <Badge tone="warn">Desativada</Badge>}>
+            {!user.twoFactorEnabled && (
+              <p className="muted">Proteja a conta com um código do aplicativo autenticador além da senha. É obrigatório para o acesso de superadmin.</p>
             )}
+            {/* Mesmo componente nos dois estados: após a ativação, mantém os códigos de recuperação na tela até "Concluir". */}
+            <TwoFactorSetup enabled={user.twoFactorEnabled} />
           </Card>
           <Card title="Sessões">
             <p className="muted">Encerra o acesso em todos os navegadores e dispositivos, inclusive neste.</p>
