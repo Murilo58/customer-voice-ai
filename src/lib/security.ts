@@ -17,18 +17,7 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export function slugify(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/g, "");
-}
-
-export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$/;
+export { SLUG_RE, slugify } from "./slug";
 
 const SENSITIVE_KEY = /pass(word)?|senha|token|secret|segredo|authorization|cookie|^otp$|^code$|backup_?codes?/i;
 const EMAIL_RE = /([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
