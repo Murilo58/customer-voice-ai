@@ -15,13 +15,13 @@ import {
   acceptMemberInvitation,
   changeMemberRole,
   createOrganizationFromInvitation,
-  createOrganizationInvitation,
   getMemberInvitation,
   getOrganizationInvitation,
   inviteMember,
   revokeMemberInvitation,
   setMemberStatus,
 } from "@/server/organizations/service";
+import { sendOrganizationInvitation } from "@/server/organizations/organization-invite";
 import { backWithError, field } from "./helpers";
 
 /** Cria a conta do convidado com o e-mail do convite. Posse do token comprova o e-mail. */
@@ -46,11 +46,8 @@ async function signUpInvited(email: string, form: FormData, back: string): Promi
 
 export async function createOrganizationInvitationAction(form: FormData): Promise<void> {
   const admin = await requirePlatformAdmin();
-  let link: string;
   try {
-    const inv = await createOrganizationInvitation(admin.id, field(form, "email"));
-    link = appUrl(`/criar-organizacao/${inv.token}`);
-    await getEmailSender().send({ to: inv.email, subject: "Convite para o beta do VoxDesk AI", text: `Crie sua organização: ${link}\nO convite expira em 7 dias.` });
+    await sendOrganizationInvitation(admin.id, field(form, "email"));
   } catch (e) {
     backWithError("/admin", e);
   }

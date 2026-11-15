@@ -2,6 +2,7 @@ import { TRIAGE_JOB, triageJobHandler } from "@/server/ai/triage";
 import { SANITIZE_JOB, sanitizeJobHandler } from "@/server/attachments/service";
 import { INBOUND_JOB, inboundJobHandler, RECONCILE_JOB, reconcileJobHandler, scheduleReconcile } from "@/server/email/inbound/process";
 import { EMAIL_JOB, emailJobHandler } from "@/server/email/outbound";
+import { ORG_INVITE_JOB, organizationInviteJobHandler } from "@/server/organizations/organization-invite";
 import { pruneRateLimits } from "@/server/security/rate-limit";
 import { AUTOCLOSE_JOB, autoCloseJobHandler } from "@/server/servicedesk/workflow";
 import { SLA_JOB, slaJobHandler } from "@/server/sla/service";
@@ -16,6 +17,7 @@ export const defaultJobHandlers = (): Record<string, JobHandler> => ({
   [SANITIZE_JOB]: sanitizeJobHandler(),
   [INBOUND_JOB]: inboundJobHandler(),
   [RECONCILE_JOB]: reconcileJobHandler(),
+  [ORG_INVITE_JOB]: organizationInviteJobHandler(),
 });
 
 /** Tarefas periódicas do varredor: reconciliação do recebimento (a cada 10 min) e limpeza de contadores. */
