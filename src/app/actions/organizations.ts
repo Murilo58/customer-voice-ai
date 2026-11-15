@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { MemberRole } from "@/generated/prisma/client";
 import { normalizeEmail } from "@/lib/security";
+import { SLUG_RE, slugify } from "@/lib/slug";
 import { recordAuthEvent } from "@/server/audit/audit";
 import { getDb } from "@/server/db/client";
 import { appUrl, getEmailSender } from "@/server/email/sender";
@@ -57,14 +58,19 @@ export async function createOrganizationInvitationAction(form: FormData): Promis
 // ---------- Criação de organização (RF-ORG-02) ----------
 
 export async function createOrganizationAction(token: string, form: FormData): Promise<void> {
-  const back = `/criar-organizacao/${encodeURIComponent(token)}`;
+  // O identificador digitado é normalizado (ex.: "Orizon" -> "orizon"); o serviço revalida formato e unicidade.
+  const slug = slugify(field(form, "slug"));
+  // Em caso de erro, o formulário volta preenchido com o nome e o identificador.
+  const keep = new URLSearchParams({ nome: field(form, "org_name").slice(0, 120), identificador: slug });
+  const back = `/criar-organizacao/${encodeURIComponent(token)}?${keep}`;
   const inv = await getOrganizationInvitation(token);
   if (!inv) backWithError(back, new DomainError("invitation_not_found", ""));
   if (inv.state !== "valid") backWithError(back, new DomainError(`invitation_${inv.state}`, ""));
+  // Formato inválido é recusado antes de criar a conta do convidado.
+  if (!SLUG_RE.test(slug)) backWithError(back, new DomainError("invalid_slug", ""));
 
   let user = await getSessionUser();
   if (!user) user = { ...(await signUpInvited(inv.email, form, back)), name: "", twoFactorEnabled: false };
-  const slug = field(form, "slug").trim().toLowerCase();
   try {
     await createOrganizationFromInvitation({ token, userId: user.id, userEmail: user.email, name: field(form, "org_name"), slug, timezone: field(form, "timezone") || undefined });
   } catch (e) {

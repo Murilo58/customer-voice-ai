@@ -5,6 +5,7 @@ import { ErrorAlert, param, type SearchParams } from "@/app/components";
 import { PasswordFields } from "@/app/password-fields";
 import { getSessionUser } from "@/server/identity/session";
 import { getOrganizationInvitation } from "@/server/organizations/service";
+import { OrganizationFields } from "./organization-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,7 @@ export default async function CreateOrganizationPage({ params, searchParams }: {
                 <PasswordFields />
               </>
             )}
-            <label htmlFor="org_name">Nome da organização</label>
-            <input id="org_name" name="org_name" required minLength={2} maxLength={120} />
-            <label htmlFor="slug">Identificador (usado no endereço)</label>
-            <input id="slug" name="slug" required pattern="[a-z0-9][a-z0-9\-]{1,46}[a-z0-9]" placeholder="minha-empresa" />
+            <OrganizationFields defaultName={param(sp, "nome") ?? ""} defaultSlug={param(sp, "identificador") ?? ""} />
             <label htmlFor="timezone">Fuso horário</label>
             <select id="timezone" name="timezone" defaultValue="America/Sao_Paulo">
               {TIMEZONES.map((tz) => (
