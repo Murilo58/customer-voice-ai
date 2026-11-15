@@ -13,7 +13,7 @@ const HIGHLIGHTS = [
 export function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="auth">
-      <aside className="auth-panel" aria-label="Sobre o Customer Voice AI">
+      <aside className="auth-panel" aria-label="Sobre o VoxDesk AI">
         <Brand className="brand-inverse" />
         <div className="auth-panel-body">
           <h2>Atendimento que aprende com cada cliente</h2>

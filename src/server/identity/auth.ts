@@ -14,7 +14,7 @@ function createAuth() {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret || secret.length < 32) throw new Error("BETTER_AUTH_SECRET ausente ou curto (mínimo 32 caracteres).");
   return betterAuth({
-    appName: "Customer Voice AI",
+    appName: "VoxDesk AI",
     secret,
     baseURL: process.env.BETTER_AUTH_URL,
     database: prismaAdapter(getDb(), { provider: "postgresql" }),
@@ -33,7 +33,7 @@ function createAuth() {
         }
         await getEmailSender().send({
           to: user.email,
-          subject: "Redefinição de senha — Customer Voice AI",
+          subject: "Redefinição de senha — VoxDesk AI",
           text: `Para definir uma nova senha, acesse: ${appUrl(`/redefinir-senha?token=${encodeURIComponent(token)}`)}
 O link vale por 30 minutos e funciona uma única vez. Se você não pediu, ignore esta mensagem.`,
         });
@@ -54,7 +54,7 @@ O link vale por 30 minutos e funciona uma única vez. Se você não pediu, ignor
       cookiePrefix: "cva",
     },
     rateLimit: { enabled: process.env.NODE_ENV === "production", window: 60, max: 30 },
-    plugins: [twoFactor({ issuer: "Customer Voice AI" }), nextCookies()],
+    plugins: [twoFactor({ issuer: "VoxDesk AI" }), nextCookies()],
   });
 }
 

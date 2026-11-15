@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "Customer Voice AI", robots: { index: false } };
+export const metadata: Metadata = { title: "VoxDesk AI", robots: { index: false } };
 
 // Fonte hospedada no próprio deploy pelo next/font (sem requisição a terceiros em tempo de execução).
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });

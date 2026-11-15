@@ -1,4 +1,4 @@
-# Customer Voice AI
+# VoxDesk AI
 
 SaaS B2B multi-tenant de atendimento com IA. Referências: `docs/PRD-Customer-Voice-AI.md` (v0.3) e `docs/architecture/`.
 

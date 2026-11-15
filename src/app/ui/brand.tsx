@@ -4,8 +4,8 @@ import Link from "next/link";
 export function Brand({ href = "/", className = "" }: { href?: string; className?: string }) {
   return (
     <Link href={href} className={`brand ${className}`.trim()}>
-      <span className="brand-mark" aria-hidden="true">CV</span>
-      <span className="brand-name">Customer Voice AI</span>
+      <span className="brand-mark" aria-hidden="true">VD</span>
+      <span className="brand-name">VoxDesk AI</span>
     </Link>
   );
 }
