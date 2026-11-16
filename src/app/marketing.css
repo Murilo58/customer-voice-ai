@@ -115,8 +115,10 @@
 .mk-cta .btn-primary:hover { background: #eef2ff; color: #1e2a5a; }
 
 .mk-footer { border-top: 1px solid var(--line); padding: 28px 0; }
-.mk-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.mk-footer p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+/* Três colunas iguais: marca à esquerda, texto no centro exato da página (a 3ª coluna equilibra a 1ª). */
+.mk-footer-inner { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+.mk-footer-inner > :first-child { justify-self: start; }
+.mk-footer p { margin: 0; color: var(--muted); font-size: var(--text-sm); text-align: center; }
 
 /* ---------- Telas de acesso ---------- */
 .auth { display: grid; grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.1fr); min-height: 100vh; }
@@ -228,4 +230,6 @@
   .mk-cta-inner { padding: 28px 22px; }
   .mk-header-inner .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .mock-ai ul { grid-template-columns: 1fr; }
+  .mk-footer-inner { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 10px; }
+  .mk-footer-inner > :first-child { justify-self: center; }
 }
