@@ -43,12 +43,42 @@ export async function verifyTwoFactorAction(form: FormData): Promise<void> {
     await recordAuthEvent(getDb(), { action: "auth.login", actorId: r.user.id, details: { mfa: true } });
   } catch (e) {
     if (e instanceof APIError) {
+      if (apiErrorCode(e) === "INVALID_TWO_FACTOR_COOKIE") backWithError(`/entrar?next=${encodeURIComponent(next)}`, new DomainError("mfa_session_expired", ""));
       await recordAuthEvent(getDb(), { action: "auth.mfa_failed" });
-      backWithError(`/entrar/2fa?next=${encodeURIComponent(next)}`, new DomainError("invalid_code", ""));
+      backWithError(`/entrar/2fa?next=${encodeURIComponent(next)}`, new DomainError(isMfaLocked(e) ? "mfa_locked" : "invalid_code", ""));
     }
     backWithError("/entrar/2fa", e);
   }
   redirect(next);
+}
+
+/**
+ * Login com código de recuperação, pelo Better Auth (verifyBackupCode): cada código vale uma única vez e as
+ * tentativas inválidas contam para o mesmo bloqueio temporário do código do aplicativo.
+ */
+export async function verifyRecoveryCodeAction(form: FormData): Promise<void> {
+  const next = safeNext(field(form, "next") || "/app");
+  const back = `/entrar/2fa?modo=recuperacao&next=${encodeURIComponent(next)}`;
+  // Formato do Better Auth: XXXXX-XXXXX (diferencia maiúsculas). Aceita o código digitado sem o hífen.
+  const typed = field(form, "code").replace(/\s/g, "");
+  if (!/^[A-Za-z0-9]{5}-?[A-Za-z0-9]{5}$/.test(typed)) backWithError(back, new DomainError("invalid_recovery_code", ""));
+  const code = typed.includes("-") ? typed : `${typed.slice(0, 5)}-${typed.slice(5)}`;
+  try {
+    const r = await getAuth().api.verifyBackupCode({ body: { code }, headers: await headers() });
+    await recordAuthEvent(getDb(), { action: "auth.login", actorId: r.user.id, details: { mfa: true, recoveryCode: true } });
+  } catch (e) {
+    if (e instanceof APIError) {
+      if (apiErrorCode(e) === "INVALID_TWO_FACTOR_COOKIE") backWithError(`/entrar?next=${encodeURIComponent(next)}`, new DomainError("mfa_session_expired", ""));
+      await recordAuthEvent(getDb(), { action: "auth.mfa_failed", details: { recoveryCode: true } });
+      backWithError(back, new DomainError(isMfaLocked(e) ? "mfa_locked" : "invalid_recovery_code", ""));
+    }
+    backWithError(back, e);
+  }
+  redirect(next);
+}
+
+function isMfaLocked(e: APIError): boolean {
+  return apiErrorCode(e) === "ACCOUNT_TEMPORARILY_LOCKED";
 }
 
 export async function signOutAction(): Promise<void> {

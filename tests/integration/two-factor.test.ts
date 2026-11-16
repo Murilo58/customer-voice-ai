@@ -105,3 +105,46 @@ describe("ativação do 2FA (Better Auth)", () => {
     expect((await state(u.id)).tf?.verified).toBe(true);
   });
 });
+
+describe("login com código de recuperação (Better Auth verifyBackupCode)", () => {
+  /** Usuário com 2FA ativo; devolve os códigos de recuperação. */
+  async function userWith2fa() {
+    const u = await signedInUser();
+    const r = await enable(u.headers);
+    await getAuth().api.verifyTOTP({ body: { code: totp(manualKeyFromUri(r.totpURI)) }, headers: u.headers });
+    return { ...u, codes: r.backupCodes };
+  }
+
+  /** Senha correta com 2FA ativo: sem sessão, apenas o cookie temporário da verificação. */
+  async function pendingLogin(email: string): Promise<Headers> {
+    const { headers, response } = await getAuth().api.signInEmail({ body: { email, password }, returnHeaders: true });
+    expect("twoFactorRedirect" in response && response.twoFactorRedirect).toBe(true);
+    const cookie = headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    expect(cookie).not.toMatch(/cva\.session_token=[^;]/);
+    return new Headers({ cookie });
+  }
+
+  it("código de recuperação válido conclui o login, e o mesmo código não vale de novo", async () => {
+    const u = await userWith2fa();
+    const code = u.codes[0]!;
+    const ok = await getAuth().api.verifyBackupCode({ body: { code }, headers: await pendingLogin(u.email), returnHeaders: true });
+    expect(ok.response.user.id).toBe(u.id);
+    const session = new Headers({ cookie: ok.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ") });
+    expect((await getAuth().api.getSession({ headers: session }))?.user.id).toBe(u.id);
+    await expect(getAuth().api.verifyBackupCode({ body: { code }, headers: await pendingLogin(u.email) })).rejects.toThrow();
+    const other = await getAuth().api.verifyBackupCode({ body: { code: u.codes[1]! }, headers: await pendingLogin(u.email) });
+    expect(other.user.id).toBe(u.id);
+  });
+
+  it("código inválido é recusado e conta como tentativa falha", async () => {
+    const u = await userWith2fa();
+    await expect(getAuth().api.verifyBackupCode({ body: { code: "AAAAA-BBBBB" }, headers: await pendingLogin(u.email) })).rejects.toThrow();
+    const tf = await getDb().twoFactor.findFirstOrThrow({ where: { userId: u.id }, select: { failedVerificationCount: true } });
+    expect(tf.failedVerificationCount).toBe(1);
+  });
+
+  it("sem o cookie da verificação (senha não confirmada), o código não abre sessão", async () => {
+    const u = await userWith2fa();
+    await expect(getAuth().api.verifyBackupCode({ body: { code: u.codes[0]! }, headers: new Headers() })).rejects.toThrow();
+  });
+});
