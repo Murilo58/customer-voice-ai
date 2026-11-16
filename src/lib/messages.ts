@@ -2,6 +2,9 @@
 const MESSAGES: Record<string, string> = {
   invalid_credentials: "E-mail ou senha inválidos.",
   invalid_code: "Código inválido. Tente novamente.",
+  invalid_recovery_code: "Código de recuperação inválido ou já utilizado. Confira se digitou exatamente como foi exibido, incluindo maiúsculas e minúsculas.",
+  mfa_locked: "Muitas tentativas incorretas. Aguarde alguns minutos e tente novamente.",
+  mfa_session_expired: "A verificação expirou. Entre novamente com seu e-mail e senha.",
   invalid_code_format: "Informe os 6 números exibidos no aplicativo autenticador.",
   invalid_code_setup: "Código incorreto ou expirado. Use o código que aparece agora no aplicativo (ele muda a cada 30 segundos) e confira se o relógio do celular está no horário automático.",
   mfa_setup_expired: "A configuração expirou ou foi substituída. Clique em \"Recomeçar\" e confirme sua senha para gerar um novo QR Code.",

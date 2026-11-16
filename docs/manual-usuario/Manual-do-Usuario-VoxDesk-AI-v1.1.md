@@ -109,6 +109,8 @@ Esta seção é para quem recebeu da Orizon o convite para **criar uma organiza�
 
 Se a verificação em duas etapas estiver ativada na sua conta, a tela seguinte pede o **código de 6 dígitos** do seu aplicativo autenticador (veja a seção 2.5).
 
+Se você perdeu o acesso ao aplicativo, clique em **Perdeu o acesso ao aplicativo? Usar um código de recuperação** e digite um dos códigos de recuperação que você guardou. Cada código vale uma única vez. Para voltar ao código do aplicativo, clique em **Usar o código do aplicativo autenticador**.
+
 ### 2.4 Esqueci minha senha
 
 ![Recuperação de senha](imagens/02-recuperar-senha.png)
@@ -142,7 +144,7 @@ Com a **verificação em duas etapas** ativada, o login passa a pedir, além da 
 
 > **Se o código for recusado:** use o código que aparece no momento (ele muda a cada 30 segundos) e confira se o relógio do celular está no horário automático. Se a tela informar que a configuração expirou, clique em **Recomeçar** e repita a ativação: o novo QR Code substitui o anterior.
 
-> **Segurança:** não tire captura de tela do QR Code, da chave ou dos códigos de recuperação e não os envie por e-mail ou mensagem. Se perder o acesso ao aplicativo autenticador, fale com o administrador da plataforma.
+> **Segurança:** não tire captura de tela do QR Code, da chave ou dos códigos de recuperação e não os envie por e-mail ou mensagem. Se perder o acesso ao aplicativo autenticador, entre com um código de recuperação (veja a seção 2.3). Se também não tiver os códigos, fale com o administrador da plataforma.
 
 **Sessões:** o botão **Sair de todos os dispositivos** encerra o acesso em todos os navegadores e aparelhos, inclusive no atual. Use se perder um aparelho ou suspeitar de acesso indevido.
 
@@ -618,7 +620,7 @@ Verifique a caixa de spam e confirme com o administrador o e-mail usado. O convi
 Na tela de login, clique em **Esqueci minha senha** e siga o link enviado por e-mail.
 
 **Troquei de celular ou perdi o aplicativo autenticador.**
-Fale com o administrador da plataforma para recuperar o acesso.
+Na tela de verificação, clique em **Perdeu o acesso ao aplicativo? Usar um código de recuperação** e digite um dos códigos que você guardou. Cada código vale uma única vez. Se não tiver mais os códigos, fale com o administrador da plataforma.
 
 **O identificador que escolhi para a organização já está em uso.**
 Escolha outro, por exemplo acrescentando a cidade ou o segmento. A tela mantém os dados que você já preencheu.
