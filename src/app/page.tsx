@@ -265,7 +265,6 @@ export default function LandingPage() {
         <div className="mk-container mk-footer-inner">
           <Brand />
           <p>VoxDesk AI · Uma solução Orizon</p>
-          <Link href="/entrar">Entrar</Link>
         </div>
       </footer>
     </div>
