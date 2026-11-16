@@ -1,13 +1,13 @@
 ---
 titulo: Manual do Usuário — VoxDesk AI
-versao: "1.0"
+versao: "1.1"
 data: Novembro de 2026
 assinatura: Uma solução Orizon
 ---
 
 # Manual do Usuário — VoxDesk AI
 
-**Versão 1.0 · Novembro de 2026 · Uma solução Orizon**
+**Versão 1.1 · Novembro de 2026 · Uma solução Orizon**
 
 Este manual explica, passo a passo, como usar o VoxDesk AI no dia a dia do atendimento. Ele descreve somente as funcionalidades disponíveis na versão publicada da plataforma.
 
@@ -84,7 +84,22 @@ O acesso ao VoxDesk AI é feito somente por convite. Não existe cadastro aberto
 
 > **Atenção:** o convite vale por 7 dias e só pode ser aceito com o mesmo e-mail para o qual foi enviado. Se expirar, peça um novo ao administrador.
 
-### 2.2 Entrar na plataforma
+### 2.2 Criar a organização da sua empresa
+
+Esta seção é para quem recebeu da Orizon o convite para **criar uma organização** no VoxDesk AI. Quem cria a organização se torna o seu Administrador.
+
+![Criar organização](imagens/35-criar-organizacao.png)
+
+1. Abra o e-mail **Convite para criar sua organização no VoxDesk AI** e clique no link.
+2. Se você ainda não tem conta, preencha **Seu nome** e crie uma senha com **no mínimo 12 caracteres**. Se já tem conta, clique em **Entre primeiro** e faça login com o mesmo e-mail do convite.
+3. Em **Nome da organização**, digite o nome da empresa como ele deve aparecer na plataforma (por exemplo, "Casa Aurora Utilidades").
+4. O campo **Identificador (usado no endereço)** é preenchido automaticamente a partir do nome: letras minúsculas, sem acentos e com hífens no lugar dos espaços (por exemplo, `casa-aurora-utilidades`). Logo abaixo aparece o endereço da organização.
+5. Se quiser, edite o identificador. Depois de editado, ele não muda mais quando você altera o nome. Use de 3 a 48 caracteres: letras sem acento, números e hífens.
+6. Escolha o **Fuso horário** e clique em **Criar organização**.
+
+> **Atenção:** o identificador precisa ser único. Se ele já estiver em uso por outra organização, a tela avisa e mantém os dados preenchidos para você escolher outro, por exemplo acrescentando a cidade ou o segmento. O nome da organização pode ser alterado depois em **Configurações**; o identificador, não.
+
+### 2.3 Entrar na plataforma
 
 ![Tela de login](imagens/01-login.png)
 
@@ -92,9 +107,9 @@ O acesso ao VoxDesk AI é feito somente por convite. Não existe cadastro aberto
 2. Informe seu **E-mail** e sua **Senha**. O ícone de olho mostra ou oculta a senha digitada.
 3. Clique em **Entrar**.
 
-Se a autenticação em dois fatores estiver ativada na sua conta, a tela seguinte pede o **código de 6 dígitos** do seu aplicativo autenticador (veja a seção 2.4).
+Se a verificação em duas etapas estiver ativada na sua conta, a tela seguinte pede o **código de 6 dígitos** do seu aplicativo autenticador (veja a seção 2.5).
 
-### 2.3 Esqueci minha senha
+### 2.4 Esqueci minha senha
 
 ![Recuperação de senha](imagens/02-recuperar-senha.png)
 
@@ -102,18 +117,38 @@ Se a autenticação em dois fatores estiver ativada na sua conta, a tela seguint
 2. Informe o e-mail da sua conta e confirme.
 3. Você receberá um e-mail com um link para criar uma nova senha (mínimo de 12 caracteres).
 
-### 2.4 Segurança da conta e verificação em duas etapas
+### 2.5 Segurança da conta e verificação em duas etapas
 
 A página **Segurança da conta** fica no topo da tela de seleção de organização.
 
 ![Segurança da conta](imagens/31-seguranca-conta.png)
 
-- **Autenticação em dois fatores:** além da senha, o login passa a pedir um código gerado por um aplicativo autenticador no celular. Para ativar, digite sua senha em **Confirme sua senha para iniciar**, clique em **Ativar** e siga as instruções na tela.
-- **Sessões:** o botão **Sair de todos os dispositivos** encerra o acesso em todos os navegadores e aparelhos, inclusive no atual. Use se perder um aparelho ou suspeitar de acesso indevido.
+Com a **verificação em duas etapas** ativada, o login passa a pedir, além da senha, um código de 6 dígitos gerado por um aplicativo autenticador no celular (Google Authenticator, Microsoft Authenticator, Authy ou similar).
 
-> **Recomendação:** ative a autenticação em dois fatores, principalmente nos perfis de Gestor e Administrador.
+**Para ativar:**
 
-### 2.5 Sair
+1. Clique em **Ativar autenticação em duas etapas**, confirme sua senha e clique em **Continuar**.
+2. **Leia o QR Code** com o aplicativo autenticador. O aplicativo passa a mostrar a conta "VoxDesk AI" com um código que muda a cada 30 segundos.
+
+![Ativação: QR Code](imagens/36-2fa-qrcode.png)
+
+3. Se não conseguir ler o QR Code, clique em **Não consegue ler o QR Code? Inserir chave manualmente**. A chave aparece oculta: use **Mostrar** para vê-la ou **Copiar** para copiá-la e digite-a no aplicativo (opção "Inserir chave", do tipo baseada em tempo).
+4. Em **Código de 6 dígitos**, digite o código que aparece no aplicativo e clique em **Confirmar ativação**.
+5. Na etapa seguinte, guarde os **códigos de recuperação**. Use **Copiar códigos** ou **Baixar arquivo .txt** e guarde-os em local seguro, como um gerenciador de senhas. Eles são exibidos uma única vez.
+
+![Ativação: códigos de recuperação](imagens/37-2fa-codigos.png)
+
+6. Marque **Guardei os códigos de recuperação em local seguro** e clique em **Concluir**. O cartão passa a mostrar **Ativada**.
+
+> **Se o código for recusado:** use o código que aparece no momento (ele muda a cada 30 segundos) e confira se o relógio do celular está no horário automático. Se a tela informar que a configuração expirou, clique em **Recomeçar** e repita a ativação: o novo QR Code substitui o anterior.
+
+> **Segurança:** não tire captura de tela do QR Code, da chave ou dos códigos de recuperação e não os envie por e-mail ou mensagem. Se perder o acesso ao aplicativo autenticador, fale com o administrador da plataforma.
+
+**Sessões:** o botão **Sair de todos os dispositivos** encerra o acesso em todos os navegadores e aparelhos, inclusive no atual. Use se perder um aparelho ou suspeitar de acesso indevido.
+
+> **Recomendação:** ative a verificação em duas etapas, principalmente nos perfis de Gestor e Administrador.
+
+### 2.6 Sair
 
 Para encerrar o acesso, clique em **Sair**, no canto inferior do menu lateral ou no topo da tela de seleção de organização.
 
@@ -571,7 +606,7 @@ Esta seção mostra o endereço do **portal público** da organização, onde os
 - **Fique atento ao "Risco de escalada".** Priorize chamados com menção a Procon, Reclame Aqui, ação judicial ou cancelamento.
 - **Mantenha contatos atualizados.** Um e-mail correto garante que o cliente receba as respostas.
 - **Proteja dados pessoais.** Não peça senhas nem dados completos de cartão. Anexe apenas o necessário.
-- **Ative a autenticação em dois fatores** e nunca compartilhe sua senha.
+- **Ative a verificação em duas etapas** e nunca compartilhe sua senha.
 - **Mantenha a configuração em dia** (Administrador): equipes, categorias, horário comercial e metas de SLA refletem a operação real.
 
 ## 17. Perguntas frequentes
@@ -581,6 +616,12 @@ Verifique a caixa de spam e confirme com o administrador o e-mail usado. O convi
 
 **Esqueci minha senha.**
 Na tela de login, clique em **Esqueci minha senha** e siga o link enviado por e-mail.
+
+**Troquei de celular ou perdi o aplicativo autenticador.**
+Fale com o administrador da plataforma para recuperar o acesso.
+
+**O identificador que escolhi para a organização já está em uso.**
+Escolha outro, por exemplo acrescentando a cidade ou o segmento. A tela mantém os dados que você já preencheu.
 
 **Por que não vejo o Dashboard ou as Configurações?**
 Essas áreas dependem do perfil. O Dashboard está disponível para Gestores e Administradores. As Configurações, só para Administradores.
@@ -618,6 +659,8 @@ A IA pode estar desativada, sem cota no mês ou não autorizada para a organiza�
 | --- | --- |
 | Chamado | Registro de uma solicitação de cliente, com protocolo, conversa e histórico. |
 | Protocolo | Identificador único do chamado (por exemplo, CASAAU-000002). |
+| Identificador da organização | Nome técnico da organização usado no endereço da plataforma (por exemplo, `casa-aurora-utilidades`). Definido na criação da organização. |
+| Verificação em duas etapas | Proteção do login que pede, além da senha, um código do aplicativo autenticador. |
 | Contato | Cliente que abriu ou é atendido em chamados. |
 | Empresa-cliente | Empresa à qual um ou mais contatos pertencem. |
 | Equipe (fila) | Grupo de pessoas responsável por um conjunto de chamados. |
@@ -634,5 +677,5 @@ A IA pode estar desativada, sem cota no mês ou não autorizada para a organiza�
 
 ---
 
-**VoxDesk AI — Manual do Usuário, versão 1.0 · Novembro de 2026**
+**VoxDesk AI — Manual do Usuário, versão 1.1 · Novembro de 2026**
 Uma solução Orizon.
