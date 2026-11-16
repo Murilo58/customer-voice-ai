@@ -17,7 +17,7 @@ export async function sendOrganizationInvitation(
   try {
     const r = await (deps.sender ?? getEmailSender()).send({
       to: inv.email,
-      subject: "Convite para o beta do VoxDesk AI",
+      subject: "Convite para criar sua organização no VoxDesk AI",
       text: `Crie sua organização: ${appUrl(`/criar-organizacao/${inv.token}`)}\nO convite expira em 7 dias.`,
     });
     return { invitationId: inv.id, providerId: r.providerId };

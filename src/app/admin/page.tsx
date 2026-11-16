@@ -24,7 +24,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
           <ErrorAlert code={param(sp, "erro")} />
           <Success show={param(sp, "ok") === "1"}>Convite de organização criado e enviado.</Success>
           <div className="settings-grid">
-            <Card title="Convidar organização para o beta" actions={<span className="muted">RF-ORG-01</span>}>
+            <Card title="Convidar organização" actions={<span className="muted">RF-ORG-01</span>}>
               <form action={createOrganizationInvitationAction} className="form-stack">
                 <Field id="email" label="E-mail do responsável" hint="O convite vale por 7 dias.">
                   <input id="email" name="email" type="email" required aria-describedby="email-hint" />
